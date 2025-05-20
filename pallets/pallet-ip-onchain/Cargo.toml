@@ -1,0 +1,32 @@
+[package]
+name = "pallet-ip-onchain"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+scale-codec = { features = ["derive", "serde"], workspace = true }
+scale-info = { features = ["derive", "serde"], workspace = true }
+serde = { workspace = true, features = ["derive"] }
+
+enumflags2 = { workspace = true }
+log = { workspace = true }
+
+polkadot-sdk = { workspace = true, features = [
+    "runtime",
+    "experimental",
+], default-features = false }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = ["std"]
+runtime-benchmarks = ["polkadot-sdk/runtime-benchmarks"]
+std = ["scale-codec/std", "polkadot-sdk/std", "scale-info/std"]
+try-runtime = ["polkadot-sdk/try-runtime"]

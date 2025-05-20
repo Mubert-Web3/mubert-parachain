@@ -1,0 +1,89 @@
+[package]
+name = "mubert-node"
+description = "A Mubert parachain node."
+version = "0.1.0"
+license = "Unlicense"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish = false
+build = "build.rs"
+
+[dependencies]
+clap = { features = ["derive"], workspace = true }
+log = { workspace = true, default-features = true }
+scale-codec = { workspace = true, default-features = true }
+
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["alloc"] }
+
+
+jsonrpsee = { features = ["server"], workspace = true }
+futures = { workspace = true }
+
+docify = { workspace = true }
+color-print = { workspace = true }
+polkadot-sdk = { workspace = true, features = [
+    "node",
+    "sc-transaction-pool",
+    "cumulus-primitives-parachain-inherent",
+] }
+mubert-runtime = { workspace = true, default-features = false }
+sc-tracing.workspace = true
+sc-tracing.default-features = true
+prometheus-endpoint.workspace = true
+prometheus-endpoint.default-features = true
+
+pallet-ip-onchain-runtime-api.workspace = true
+pallet-ip-onchain-rpc.workspace = true
+
+## Frontier
+fc-api = { workspace = true }
+fc-cli = { workspace = true }
+fc-consensus = { workspace = true }
+fc-db = { workspace = true }
+fc-mapping-sync = { workspace = true }
+fc-rpc = { workspace = true, features = ["aura"] }
+fc-rpc-core = { workspace = true }
+fc-storage = { workspace = true }
+fp-account = { workspace = true }
+fp-dynamic-fee = { workspace = true, features = ["default"] }
+fp-evm = { workspace = true, features = ["default"] }
+fp-rpc = { workspace = true, features = ["default"] }
+## Frontier
+
+[build-dependencies]
+polkadot-sdk = { workspace = true, features = [
+    "substrate-build-script-utils",
+    "serde",
+] }
+
+[features]
+default = ["std", "rocksdb", "sql", "txpool", "rpc-binary-search-estimate"]
+std = [
+    "log/std",
+    "mubert-runtime/std",
+    "polkadot-sdk/std",
+    "pallet-ip-onchain-runtime-api/std",
+    "pallet-ip-onchain-rpc/std",
+    "serde/std",
+    "serde_json/std",
+]
+runtime-benchmarks = [
+    "mubert-runtime/runtime-benchmarks",
+    "polkadot-sdk/runtime-benchmarks",
+]
+try-runtime = [
+    "mubert-runtime/try-runtime",
+    "polkadot-sdk/try-runtime",
+]
+rocksdb = [
+    "fc-cli/rocksdb",
+    "fc-db/rocksdb",
+    "fc-mapping-sync/rocksdb",
+    "fc-rpc/rocksdb",
+]
+sql = ["fc-db/sql", "fc-mapping-sync/sql"]
+txpool = ["fc-rpc/txpool"]
+rpc-binary-search-estimate = ["fc-rpc/rpc-binary-search-estimate"]

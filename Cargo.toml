@@ -1,0 +1,86 @@
+[workspace.package]
+license = "MIT-0"
+authors = ["Parity Technologies <admin@parity.io>"]
+homepage = "https://paritytech.github.io/polkadot-sdk/"
+repository = "https://github.com/paritytech/polkadot-sdk-parachain-template.git"
+edition = "2021"
+
+[workspace]
+default-members = ["pallets/pallet-ip-onchain", "runtime"]
+members = [
+    "node",
+    "pallets/pallet-ip-onchain",
+    "pallets/pallet-ip-onchain/runtime-api",
+    "pallets/pallet-ip-onchain/rpc",
+    "runtime",
+]
+resolver = "2"
+
+[workspace.dependencies]
+mubert-runtime = { path = "./runtime", default-features = false }
+
+## PALLETS
+# Ip On Chain
+pallet-ip-onchain = { path = "./pallets/pallet-ip-onchain", default-features = false }
+pallet-ip-onchain-runtime-api = { path = "./pallets/pallet-ip-onchain/runtime-api", default-features = false }
+pallet-ip-onchain-rpc = { path = "./pallets/pallet-ip-onchain/rpc", default-features = false }
+
+# Codecs
+scale-codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false, features = [
+    "derive",
+] }
+scale-info = { version = "2.11.1", default-features = false, features = [
+    "derive",
+] }
+serde = { version = "1.0.214", default-features = false }
+serde_json = { version = "1.0.132", default-features = false }
+
+# CLI
+clap = { version = "4.5.13", default-features = false }
+
+# TODO
+color-print = { version = "0.3.4", default-features = false }
+docify = { version = "0.2.9", default-features = false }
+futures = { version = "0.3.31", default-features = false }
+jsonrpsee = { version = "0.24.9", default-features = false }
+
+# LOGS
+log = { version = "0.4.22", default-features = false }
+enumflags2 = { version = "0.7.7", default-features = false }
+
+polkadot-sdk = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
+substrate-wasm-builder = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
+cumulus-pallet-parachain-system = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
+sc-tracing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
+
+# need a clean up
+prometheus-endpoint = { version = "0.17.1", default-features = false, package = "substrate-prometheus-endpoint" }
+hex-literal = { version = "0.4.1", default-features = false }
+smallvec = { version = "1.11.0", default-features = false }
+
+# Frontier Client
+fc-api = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fc-cli = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fc-consensus = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fc-db = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fc-mapping-sync = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fc-rpc = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fc-rpc-core = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fc-storage = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+
+# Frontier Primitive
+fp-account = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fp-dynamic-fee = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fp-evm = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fp-rpc = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+fp-self-contained = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+
+# Frontier FRAME
+pallet-base-fee = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+pallet-dynamic-fee = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+pallet-ethereum = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+pallet-evm = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+pallet-evm-chain-id = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+pallet-evm-precompile-modexp = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+pallet-evm-precompile-sha3fips = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+pallet-evm-precompile-simple = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
