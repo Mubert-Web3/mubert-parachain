@@ -39,7 +39,7 @@ We're left just with starting the network:
 zombienet --provider native spawn zombienet.toml
 ```
 
-### Connect with the Polkadot-JS Apps Front-End
+## Connect with the Polkadot-JS Apps Front-End
 
 - 🌐 You can interact with your local node using the
 hosted version of the Polkadot/Substrate Portal:

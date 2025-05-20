@@ -299,7 +299,7 @@ fn test_add_new_entity() {
             entity_kind,
             owner,
             url.clone(),
-            MetadataStandard::M25,
+            MetadataStandard::MM25,
         ));
 
         // Verify the entity is added
@@ -344,7 +344,7 @@ fn test_set_entity() {
                 related_to: None,
                 metadata: Some(Metadata {
                     url: vec![4, 5, 6].try_into().unwrap(),
-                    standard: MetadataStandard::M25,
+                    standard: MetadataStandard::MM25,
                 }),
             },
         );
@@ -368,7 +368,7 @@ fn test_set_entity() {
             0,
             0,
             new_url.clone(),
-            MetadataStandard::M25,
+            MetadataStandard::MM25,
             new_owner,
             Some(vec![0].try_into().unwrap()),
             None,
@@ -387,7 +387,7 @@ fn test_set_entity() {
                 0,
                 1,
                 new_url.clone(),
-                MetadataStandard::M25,
+                MetadataStandard::MM25,
                 new_owner,
                 Some(vec![0].try_into().unwrap()),
                 None,
@@ -400,12 +400,12 @@ fn test_set_entity() {
         let invalid_authors: Option<BoundedVec<u32, MaxEntityAuthors>> =
             Some(vec![999].try_into().unwrap());
         assert_err!(
-            CustomPallet::set_entity(1, 0, None, MetadataStandard::M25, None, invalid_authors, None, None),
+            CustomPallet::set_entity(1, 0, None, MetadataStandard::MM25, None, invalid_authors, None, None),
             Error::<Test, _>::EntityAuthorNotFound
         );
 
         // Case 4: No changes provided
-        assert_ok!(CustomPallet::set_entity(1, 0, None, MetadataStandard::M25, None, None, None, None));
+        assert_ok!(CustomPallet::set_entity(1, 0, None, MetadataStandard::MM25, None, None, None, None));
 
         // Verify no changes were made
         let unchanged_entity = Entities::<Test>::get(0).unwrap();

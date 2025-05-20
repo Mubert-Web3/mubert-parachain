@@ -104,7 +104,7 @@ pub enum IPEntityKind {
 )]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum MetadataStandard {
-    M25,
+    MM25,
 }
 
 /// Metadata
@@ -162,7 +162,7 @@ mod tests {
         let url_data = b"https://example.com/metadata".to_vec();
         let bounded_url: BoundedVec<u8, MaxStringLength> =
             BoundedVec::try_from(url_data.clone()).unwrap();
-        let metadata = Metadata::<MaxStringLength> { url: bounded_url, standard: MetadataStandard::M25 };
+        let metadata = Metadata::<MaxStringLength> { url: bounded_url, standard: MetadataStandard::MM25 };
 
         // Serialize the Metadata instance to JSON
         let serialized = serde_json::to_string(&metadata).expect("Serialization should succeed");
