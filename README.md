@@ -20,6 +20,15 @@ cargo build --release
 ```
 ## Starting a Development Chain
 
+### Relay chain prerequisites
+
+Download the `polkadot` (and the accompanying `polkadot-prepare-worker` and `polkadot-execute-worker`) binaries from
+[Polkadot SDK releases](https://github.com/paritytech/polkadot-sdk/releases). Then expose them on `PATH` like so:
+
+```sh
+export PATH="$PATH:<path/to/binaries>"
+```
+
 ### Run the Mubert Parachain Node
 
 For setup, please consider the instructions for `zombienet` installation [here](https://paritytech.github.io/zombienet/install.html#installation)
