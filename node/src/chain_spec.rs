@@ -36,9 +36,9 @@ pub fn development_chain_spec() -> ChainSpec {
     ChainSpec::builder(
         runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
         Extensions {
-            relay_chain: "rococo-local".into(),
+            relay_chain: "paseo".into(),
             // You MUST set this to the correct network!
-            para_id: 1000,
+            para_id: 4832,
         },
     )
     .with_name("Development")
