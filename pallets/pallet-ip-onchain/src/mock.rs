@@ -62,9 +62,10 @@ impl crate::Config for Test {
     type MaxEntityAuthors = MaxEntityAuthors;
     type MaxRoyaltyParts = MaxRoyaltyParts;
     type MaxRelatedEntities = MaxRelatedEntities;
-    type RuntimeEvent = RuntimeEvent;
     type MaxArrayLen = MaxArrayLen;
     type WhiteListChecker = TestWhiteListChecker;
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = ();
 }
 
 // Test externalities initialization

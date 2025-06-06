@@ -10,7 +10,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
     /// # Parameters
     /// - `nickname`: A bounded vector representing the nickname of the author. This is a required field.
     /// - `real_name`: An optional bounded vector representing the real name of the author. This field is optional.
-    /// - `owner`: The authority ID of the owner associated with the author.
+    /// - `owner`: The authority ID of the owner associated with the author. If `None`, the `origin` is used as the owner.
     ///
     /// # Errors
     /// - Returns `Error::<T, I>::AuthorAlreadyExists` if the author ID already exists in the storage.
@@ -19,26 +19,27 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
     /// # Events
     /// - Emits `Event::AuthorAdded` with the newly created author ID.
     pub(crate) fn add_new_author(
+        origin: T::AccountId,
         nickname: BoundedVec<u8, T::MaxShortStringLength>,
         real_name: Option<BoundedVec<u8, T::MaxLongStringLength>>,
-        owner: T::AuthorityId,
+        owner: Option<T::AccountId>,
     ) -> DispatchResult {
         NextAuthorId::<T, I>::try_mutate(|maybe_author_id| -> DispatchResult {
             let author_id = maybe_author_id
-                .map_or(T::AuthorId::initial_value(), |val| Some(val))
+                .map_or(T::AuthorId::initial_value(), Some)
                 .ok_or(Error::<T, I>::AuthorIdIncrementFailed)?;
 
             ensure!(
-                !Authors::<T, I>::contains_key(&author_id),
+                !Authors::<T, I>::contains_key(author_id),
                 Error::<T, I>::AuthorAlreadyExists
             );
 
             Authors::<T, I>::insert(
-                &author_id,
+                author_id,
                 AuthorDetails {
                     nickname,
                     real_name,
-                    owner,
+                    owner: owner.unwrap_or(origin),
                 },
             );
             Self::deposit_event(Event::AuthorAdded { author_id });
@@ -75,13 +76,13 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         origin: T::AccountId,
         author_id: T::AuthorId,
         real_name: Option<BoundedVec<u8, T::MaxLongStringLength>>,
-        owner: Option<T::AuthorityId>,
+        owner: Option<T::AccountId>,
     ) -> DispatchResult {
         // todo no change fast return
-        Authors::<T, I>::try_mutate(&author_id, |maybe_author| -> DispatchResult {
+        Authors::<T, I>::try_mutate(author_id, |maybe_author| -> DispatchResult {
             let author = maybe_author.as_mut().ok_or(Error::<T, I>::AuthorNotFound)?;
 
-            Self::ensure_authority_owner(&origin, &author.owner)?;
+            Self::ensure_author_owner(&origin, &author.owner)?;
 
             if let Some(new_real_name) = real_name {
                 author.real_name = Some(new_real_name);
@@ -119,7 +120,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         let mut authors = BoundedVec::new();
 
         while from != to {
-            if let Some(author_details) = Authors::<T, I>::get(&from) {
+            if let Some(author_details) = Authors::<T, I>::get(from) {
                 authors
                     .try_push((from, author_details))
                     .map_err(|_| Error::<T, I>::LimitExceeded)?;
@@ -145,5 +146,10 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
     /// - Returns `Error::<T, I>::AuthorNotFound` if no author with the given `author_id` exists in the storage.
     pub fn get_author(author_id: T::AuthorId) -> Result<AuthorFor<T, I>, DispatchError> {
         Ok(Authors::<T, I>::get(author_id).ok_or(Error::<T, I>::AuthorNotFound)?)
+    }
+
+    fn ensure_author_owner(origin: &T::AccountId, owner: &T::AccountId) -> DispatchResult {
+        ensure!(origin.eq(owner), Error::<T, I>::NoPermission);
+        Ok(())
     }
 }

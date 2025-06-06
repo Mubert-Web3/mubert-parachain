@@ -13,6 +13,8 @@ mod types;
 
 pub use pallet::*;
 pub use types::*;
+pub mod external_nfts_macros;
+pub mod weights;
 
 #[cfg(test)]
 mod mock;
@@ -20,8 +22,14 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub const LOG_TARGET: &'static str = "runtime::ip-onchain";
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
 
+pub use weights::WeightInfo;
+
+pub const LOG_TARGET: &str = "runtime::ip-onchain";
+
+/// TODO benchmarking for all calls, and remove dev_mode for pallet
 #[frame::pallet]
 pub mod pallet {
     use super::*;
@@ -81,14 +89,23 @@ pub mod pallet {
 
         type RuntimeEvent: From<Event<Self, I>>
             + IsType<<Self as polkadot_sdk::frame_system::Config>::RuntimeEvent>;
+
+        type WeightInfo: weights::WeightInfo;
     }
 
     #[pallet::storage]
-    pub(super) type Authorities<T: Config<I>, I: 'static = ()> = StorageMap<
+    pub(super) type Authorities<T: Config<I>, I: 'static = ()> =
+        StorageMap<_, Blake2_128Concat, T::AuthorityId, AuthorityDetailsFor<T, I>>;
+
+    #[pallet::storage]
+    pub(super) type AuthoritiesAccess<T: Config<I>, I: 'static = ()> = StorageDoubleMap<
         _,
         Blake2_128Concat,
         T::AuthorityId,
-        AuthorityDetails<T::AccountId, T::MaxShortStringLength>,
+        Blake2_128Concat,
+        T::AccountId,
+        AuthorityAccessSettings,
+        OptionQuery,
     >;
 
     #[pallet::storage]
@@ -96,7 +113,7 @@ pub mod pallet {
         _,
         Blake2_128Concat,
         T::AuthorId,
-        AuthorDetails<T::AuthorityId, T::MaxShortStringLength, T::MaxLongStringLength>,
+        AuthorDetails<T::AccountId, T::MaxShortStringLength, T::MaxLongStringLength>,
     >;
 
     #[pallet::storage]
@@ -136,6 +153,14 @@ pub mod pallet {
         AuthorityEdited {
             authority_id: T::AuthorityId,
         },
+        AuthoritiesAccessAdded {
+            authority_id: T::AuthorityId,
+            account_id: T::AccountId,
+        },
+        AuthoritiesAccessChanged {
+            authority_id: T::AuthorityId,
+            account_id: T::AccountId,
+        },
 
         /// Entity events
         EntityAdded {
@@ -159,14 +184,16 @@ pub mod pallet {
         AuthorityNotFound,
         AuthorityIdIncrementFailed,
 
+        /// AuthoritiesAccess
+        AuthoritiesAccessNotFound,
+        AuthoritiesAccessExist,
+        AuthoritiesAccessNotExist,
+
         /// Entity errors
         EntityAlreadyExists,
         EntityNotFound,
         EntityIdIncrementFailed,
-        EntityTooManyAuthors,
         EntityAuthorNotFound,
-        EntityTooManyRoyaltyParts,
-        EntityTooManyRelatedEntities,
         EntityRelatedEntityNotFound,
 
         /// General Errors
@@ -176,6 +203,7 @@ pub mod pallet {
 
         /// Permissions Errors
         NoPermission,
+        NotAuthorized,
         /// Whitelist Errors
         NotWhitelisted,
     }
@@ -185,45 +213,44 @@ pub mod pallet {
     impl<T: Config<I>, I: 'static> Pallet<T, I> {
         /// Authors calls
         #[pallet::call_index(0)]
-        #[pallet::weight(10_000)]
+        #[pallet::weight(T::WeightInfo::create_author())]
         pub fn create_author(
             origin: OriginFor<T>,
             nickname: BoundedVec<u8, T::MaxShortStringLength>,
             real_name: Option<BoundedVec<u8, T::MaxLongStringLength>>,
-            owner: T::AuthorityId,
+            owner: Option<T::AccountId>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
             ensure!(
                 T::WhiteListChecker::contains(&origin),
                 Error::<T, I>::NotWhitelisted
             );
-            Self::add_new_author(nickname, real_name, owner)?;
+            Self::add_new_author(origin, nickname, real_name, owner)?;
             Ok(())
         }
         #[pallet::call_index(1)]
-        #[pallet::weight(10_000)]
+        #[pallet::weight(T::WeightInfo::edit_author())]
         pub fn edit_author(
             origin: OriginFor<T>,
             author_id: T::AuthorId,
             real_name: Option<BoundedVec<u8, T::MaxLongStringLength>>,
-            owner: Option<T::AuthorityId>,
+            new_owner: Option<T::AccountId>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
             ensure!(
                 T::WhiteListChecker::contains(&origin),
                 Error::<T, I>::NotWhitelisted
             );
-            Self::set_author(origin, author_id, real_name, owner)?;
+            Self::set_author(origin, author_id, real_name, new_owner)?;
             Ok(())
         }
 
         /// Authority calls
         #[pallet::call_index(2)]
-        #[pallet::weight(10_000)]
+        #[pallet::weight(T::WeightInfo::create_authority())]
         pub fn create_authority(
             origin: OriginFor<T>,
             name: BoundedVec<u8, T::MaxShortStringLength>,
-            owner: T::AccountId,
             authority_kind: AuthorityKind,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
@@ -231,16 +258,15 @@ pub mod pallet {
                 T::WhiteListChecker::contains(&origin),
                 Error::<T, I>::NotWhitelisted
             );
-            Self::add_new_authority(name, owner, authority_kind)?;
+            Self::add_new_authority(origin, name, authority_kind)?;
             Ok(())
         }
         #[pallet::call_index(3)]
-        #[pallet::weight(10_000)]
+        #[pallet::weight(T::WeightInfo::edit_authority())]
         pub fn edit_authority(
             origin: OriginFor<T>,
             authority_id: T::AuthorityId,
             name: Option<BoundedVec<u8, T::MaxShortStringLength>>,
-            owner: Option<T::AccountId>,
             authority_kind: Option<AuthorityKind>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
@@ -248,35 +274,50 @@ pub mod pallet {
                 T::WhiteListChecker::contains(&origin),
                 Error::<T, I>::NotWhitelisted
             );
-            Self::set_authority(origin, authority_id, name, owner, authority_kind)?;
+            Self::set_authority(origin, authority_id, name, authority_kind)?;
             Ok(())
         }
 
         /// Entity calls
         #[pallet::call_index(4)]
-        #[pallet::weight(10_000)]
+        #[pallet::weight(T::WeightInfo::create_entity())]
         pub fn create_entity(
             origin: OriginFor<T>,
             entity_kind: IPEntityKind,
             owner: T::AuthorityId,
             url: BoundedVec<u8, T::MaxLongStringLength>,
             metadata_standard: MetadataStandard,
+            metadata_features: MetadataFeatures,
+            authors: Option<BoundedVec<T::AuthorId, T::MaxEntityAuthors>>,
+            royalty_parts: Option<BoundedVec<Wallet<T::AccountId>, T::MaxRoyaltyParts>>,
+            related_entities: Option<BoundedVec<T::EntityId, T::MaxRelatedEntities>>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
             ensure!(
                 T::WhiteListChecker::contains(&origin),
                 Error::<T, I>::NotWhitelisted
             );
-            Self::add_new_entity(entity_kind, owner, url, metadata_standard)?;
+            Self::add_new_entity(
+                origin,
+                entity_kind,
+                owner,
+                url,
+                metadata_standard,
+                metadata_features,
+                authors,
+                royalty_parts,
+                related_entities,
+            )?;
             Ok(())
         }
         #[pallet::call_index(5)]
-        #[pallet::weight(10_000)]
+        #[pallet::weight(T::WeightInfo::edit_entity())]
         pub fn edit_entity(
             origin: OriginFor<T>,
             entity_id: T::EntityId,
             url: Option<BoundedVec<u8, T::MaxLongStringLength>>,
-            metadata_standard: MetadataStandard,
+            metadata_standard: Option<MetadataStandard>,
+            metadata_features: Option<MetadataFeatures>,
             owner: Option<T::AuthorityId>,
             authors: Option<BoundedVec<T::AuthorId, T::MaxEntityAuthors>>,
             royalty_parts: Option<BoundedVec<Wallet<T::AccountId>, T::MaxRoyaltyParts>>,
@@ -292,11 +333,46 @@ pub mod pallet {
                 entity_id,
                 url,
                 metadata_standard,
+                metadata_features,
                 owner,
                 authors,
                 royalty_parts,
                 related_entities,
             )?;
+            Ok(())
+        }
+
+        #[pallet::call_index(6)]
+        #[pallet::weight(T::WeightInfo::create_account_access())]
+        pub fn create_account_access(
+            origin: OriginFor<T>,
+            authority_id: T::AuthorityId,
+            account_id: T::AccountId,
+            access: AuthorityAccessSettings,
+        ) -> DispatchResult {
+            let origin = ensure_signed(origin)?;
+            ensure!(
+                T::WhiteListChecker::contains(&origin),
+                Error::<T, I>::NotWhitelisted
+            );
+            Self::add_access(origin, authority_id, account_id, access)?;
+            Ok(())
+        }
+
+        #[pallet::call_index(7)]
+        #[pallet::weight(T::WeightInfo::edit_account_access())]
+        pub fn edit_account_access(
+            origin: OriginFor<T>,
+            authority_id: T::AuthorityId,
+            account_id: T::AccountId,
+            access: AuthorityAccessSettings,
+        ) -> DispatchResult {
+            let origin = ensure_signed(origin)?;
+            ensure!(
+                T::WhiteListChecker::contains(&origin),
+                Error::<T, I>::NotWhitelisted
+            );
+            Self::set_access(origin, authority_id, account_id, access)?;
             Ok(())
         }
     }
