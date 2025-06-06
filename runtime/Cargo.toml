@@ -118,14 +118,15 @@ runtime-benchmarks = [
     "cumulus-pallet-parachain-system/runtime-benchmarks",
     "hex-literal",
     "polkadot-sdk/runtime-benchmarks",
-
     "pallet-ip-onchain/runtime-benchmarks",
+    # Frontier
+    "pallet-ethereum/runtime-benchmarks",
+    "pallet-evm/runtime-benchmarks",
 ]
 
 try-runtime = [
     "cumulus-pallet-parachain-system/try-runtime",
     "polkadot-sdk/try-runtime",
-
     "pallet-ip-onchain/try-runtime",
 ]
 

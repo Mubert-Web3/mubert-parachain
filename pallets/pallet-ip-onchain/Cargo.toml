@@ -14,7 +14,7 @@ scale-codec = { features = ["derive", "serde"], workspace = true }
 scale-info = { features = ["derive", "serde"], workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
-enumflags2 = { workspace = true }
+enumflags2 = { workspace = true, features = ["serde"] }
 log = { workspace = true }
 
 polkadot-sdk = { workspace = true, features = [
@@ -28,5 +28,5 @@ serde_json = { workspace = true }
 [features]
 default = ["std"]
 runtime-benchmarks = ["polkadot-sdk/runtime-benchmarks"]
-std = ["scale-codec/std", "polkadot-sdk/std", "scale-info/std"]
+std = ["scale-codec/std", "polkadot-sdk/std", "scale-info/std", "enumflags2/std"]
 try-runtime = ["polkadot-sdk/try-runtime"]

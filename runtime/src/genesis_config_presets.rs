@@ -16,6 +16,9 @@ use serde_json::Value;
 use sp_genesis_builder::PresetId;
 use sp_keyring::Sr25519Keyring;
 
+#[cfg(feature = "runtime-benchmarks")]
+use polkadot_sdk::frame_benchmarking::whitelisted_caller;
+
 /// The default XCM version to set in genesis config.
 const SAFE_XCM_VERSION: u32 = xcm::prelude::XCM_VERSION;
 /// Parachain id used for gensis config presets of parachain template.
@@ -77,6 +80,8 @@ fn testnet_genesis(
             members: BoundedVec::try_from(vec![
                 Sr25519Keyring::Alice.to_account_id(),
                 Sr25519Keyring::Bob.to_account_id(),
+                #[cfg(feature = "runtime-benchmarks")]
+                whitelisted_caller::<AccountId>().into(),
             ])
             .unwrap(),
             ..Default::default()

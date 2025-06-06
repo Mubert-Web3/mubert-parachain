@@ -327,7 +327,6 @@ impl pallet_collator_selection::Config for Runtime {
     type WeightInfo = ();
 }
 
-
 parameter_types! {
     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
     pub const MaxShortStringLength: u32 = 32;
@@ -357,6 +356,7 @@ impl pallet_ip_onchain::Config for Runtime {
     type WhiteListChecker = Membership;
 
     type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_ip_onchain::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_grandpa::Config for Runtime {
