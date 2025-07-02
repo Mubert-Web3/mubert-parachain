@@ -1,8 +1,4 @@
-use crate::{
-    AccountId, BalancesConfig, CollatorSelectionConfig, MembershipConfig, ParachainInfoConfig,
-    PolkadotXcmConfig, RuntimeGenesisConfig, SessionConfig, SessionKeys, SudoConfig,
-    EXISTENTIAL_DEPOSIT,
-};
+use crate::{AccountId, BalancesConfig, CollatorSelectionConfig, MembershipConfig, ParachainInfoConfig, PolkadotXcmConfig, RuntimeGenesisConfig, SessionConfig, SessionKeys, SudoConfig, EXISTENTIAL_DEPOSIT};
 
 use alloc::{format, vec, vec::Vec};
 
@@ -18,6 +14,7 @@ use sp_keyring::Sr25519Keyring;
 
 #[cfg(feature = "runtime-benchmarks")]
 use polkadot_sdk::frame_benchmarking::whitelisted_caller;
+use polkadot_sdk::sp_application_crypto::Ss58Codec;
 
 /// The default XCM version to set in genesis config.
 const SAFE_XCM_VERSION: u32 = xcm::prelude::XCM_VERSION;
@@ -75,11 +72,12 @@ fn testnet_genesis(
             safe_xcm_version: Some(SAFE_XCM_VERSION),
             ..Default::default()
         },
-        sudo: SudoConfig { key: Some(root) },
+        sudo: SudoConfig { key: Some(root.clone()) },
         membership: MembershipConfig {
             members: BoundedVec::try_from(vec![
                 Sr25519Keyring::Alice.to_account_id(),
-                Sr25519Keyring::Bob.to_account_id(),
+                root.clone(),
+                //Sr25519Keyring::Bob.to_account_id(),
                 #[cfg(feature = "runtime-benchmarks")]
                 whitelisted_caller::<AccountId>().into(),
             ])
@@ -99,6 +97,11 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
 }
 
 fn local_testnet_genesis() -> Value {
+    let collator_id = "5EUg77eNXXPhxsMktNjNdqC5W4TEaZ6aRWUpxED5QY4kfJCe";
+    let sudo_account = AccountId::from_ss58check("5Ev8iRRe9R9Ag4V7hDDnDCwsx9pahjxeR39Bbq7vW69xyKtF").unwrap();
+    let collator = AccountId::from_ss58check(collator_id).unwrap();
+    let collator_grandpa_id = GrandpaId::from_ss58check(collator_id).unwrap();
+    let collator_aura_id = AuraId::from_ss58check(collator_id).unwrap();
     testnet_genesis(
         // initial collators.
         vec![
@@ -112,11 +115,18 @@ fn local_testnet_genesis() -> Value {
                 get_from_seed::<GrandpaId>("Bob"),
                 Sr25519Keyring::Bob.public().into(),
             ),
+            (
+                collator.clone(),
+                collator_grandpa_id,
+                collator_aura_id,
+            )
         ],
-        Sr25519Keyring::well_known()
-            .map(|k| k.to_account_id())
-            .collect(),
-        Sr25519Keyring::Alice.to_account_id(),
+        vec![
+            Sr25519Keyring::Alice.to_account_id(),
+            sudo_account.clone(),
+            collator.clone(),
+        ],
+        sudo_account,
         PARACHAIN_ID.into(),
     )
 }
