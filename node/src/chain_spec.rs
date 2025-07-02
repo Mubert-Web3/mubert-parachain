@@ -38,7 +38,7 @@ pub fn development_chain_spec() -> ChainSpec {
         Extensions {
             relay_chain: "paseo".into(),
             // You MUST set this to the correct network!
-            para_id: 4832,
+            para_id: 4724,
         },
     )
     .with_name("Development")

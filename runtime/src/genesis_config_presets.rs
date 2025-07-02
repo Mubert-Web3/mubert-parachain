@@ -19,7 +19,7 @@ use polkadot_sdk::sp_application_crypto::Ss58Codec;
 /// The default XCM version to set in genesis config.
 const SAFE_XCM_VERSION: u32 = xcm::prelude::XCM_VERSION;
 /// Parachain id used for gensis config presets of parachain template.
-const PARACHAIN_ID: u32 = 1000;
+const PARACHAIN_ID: u32 = 4724;
 
 /// Generate the session keys from individual elements.
 ///
@@ -96,12 +96,8 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
         .public()
 }
 
-fn local_testnet_genesis() -> Value {
-    let collator_id = "5EUg77eNXXPhxsMktNjNdqC5W4TEaZ6aRWUpxED5QY4kfJCe";
+fn development_config_genesis() -> Value {
     let sudo_account = AccountId::from_ss58check("5Ev8iRRe9R9Ag4V7hDDnDCwsx9pahjxeR39Bbq7vW69xyKtF").unwrap();
-    let collator = AccountId::from_ss58check(collator_id).unwrap();
-    let collator_grandpa_id = GrandpaId::from_ss58check(collator_id).unwrap();
-    let collator_aura_id = AuraId::from_ss58check(collator_id).unwrap();
     testnet_genesis(
         // initial collators.
         vec![
@@ -114,24 +110,18 @@ fn local_testnet_genesis() -> Value {
                 Sr25519Keyring::Bob.to_account_id(),
                 get_from_seed::<GrandpaId>("Bob"),
                 Sr25519Keyring::Bob.public().into(),
-            ),
-            (
-                collator.clone(),
-                collator_grandpa_id,
-                collator_aura_id,
             )
         ],
         vec![
             Sr25519Keyring::Alice.to_account_id(),
             sudo_account.clone(),
-            collator.clone(),
         ],
         sudo_account,
         PARACHAIN_ID.into(),
     )
 }
 
-fn development_config_genesis() -> Value {
+fn local_testnet_genesis() -> Value {
     testnet_genesis(
         // initial collators.
         vec![
