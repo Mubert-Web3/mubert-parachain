@@ -9,9 +9,10 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
     /// - The `add_first_access` function is called to initialize access rights for the new authority.
     ///
     /// # Parameters
+    /// - `origin`: The account ID of the caller.
     /// - `name`: A bounded vector representing the name of the authority. This is a required field.
-    /// - `owner`: The account ID of the owner associated with the authority.
     /// - `authority_kind`: The type or category of the authority being added.
+    /// - `collection_config`: An optional collection configuration for initializing the authority's NFT collection.
     ///
     /// # Errors
     /// - Returns `Error::<T, I>::AuthorityAlreadyExists` if the authority ID already exists in the storage.
@@ -23,6 +24,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         origin: T::AccountId,
         name: BoundedVec<u8, T::MaxShortStringLength>,
         authority_kind: AuthorityKind,
+        collection_config: Option<T::CollectionConfig>,
     ) -> DispatchResult {
         NextAuthorityId::<T, I>::try_mutate(|maybe_authority_id| -> DispatchResult {
             let authority_id = maybe_authority_id
@@ -34,11 +36,15 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                 Error::<T, I>::AuthorityAlreadyExists
             );
 
+            let collection_id =
+                Self::init_collection_id_checked(origin.clone(), collection_config)?;
+
             Authorities::<T, I>::insert(
                 authority_id,
                 AuthorityDetails {
                     authority_kind,
                     name,
+                    collection_id,
                 },
             );
             Self::deposit_event(Event::AuthorityAdded { authority_id });
@@ -62,16 +68,18 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
     /// - The caller (`origin`) has the necessary access rights to edit the authority.
     /// - Updates the `name` field if a new value is provided.
     /// - Updates the `authority_kind` field if a new value is provided.
+    /// - Initializes the NFT collection ID if provided and not already set.
     ///
     /// # Parameters
     /// - `origin`: The account ID of the caller, which must have the required access rights for the authority.
     /// - `authority_id`: The unique identifier of the authority to be edited.
     /// - `name`: An optional bounded vector representing the new name of the authority. If `None`, the `name` field remains unchanged.
     /// - `authority_kind`: An optional value representing the new type or category of the authority. If `None`, the `authority_kind` field remains unchanged.
+    /// - `init_collection_id`: An optional collection configuration for initializing the authority's NFT collection.
     ///
     /// # Errors
     /// - Returns `Error::<T, I>::AuthorityNotFound` if the authority with the given `authority_id` does not exist in the storage.
-    /// - Returns an access control error
+    /// - Returns `Error::<T, I>::AuthorityNftCollectionIdAlreadyExist` if the collection ID is already initialized.
     ///
     /// # Events
     /// - Emits `Event::AuthorityEdited` with the `authority_id` of the edited authority.
@@ -80,6 +88,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         authority_id: T::AuthorityId,
         name: Option<BoundedVec<u8, T::MaxShortStringLength>>,
         authority_kind: Option<AuthorityKind>,
+        collection_config: Option<T::CollectionConfig>,
     ) -> DispatchResult {
         Self::ensure_access_right(
             &origin,
@@ -91,6 +100,23 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
             let authority = maybe_authority
                 .as_mut()
                 .ok_or(Error::<T, I>::AuthorityNotFound)?;
+
+            if collection_config.is_some() {
+                ensure!(
+                    authority.collection_id.is_none(),
+                    Error::<T, I>::AuthorityNftCollectionIdAlreadyExist
+                );
+
+                Self::ensure_access_right(
+                    &origin,
+                    &authority_id,
+                    AuthorityAccessSetting::CreateAuthorityCollection.into(),
+                )?;
+
+                let collection_id = Self::init_collection_id_checked(origin, collection_config)?;
+
+                authority.collection_id = collection_id;
+            }
 
             if let Some(new_name) = name {
                 authority.name = new_name;
@@ -122,6 +148,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
     /// - Each tuple represents an authority ID and the associated `AuthorityDetails`.
     ///
     /// # Errors
+    /// - Returns `Error::<T, I>::BadFormat` if the `to` ID is less than the `from` ID.
     /// - Returns `Error::<T, I>::LimitExceeded` if the number of authorities exceeds the maximum array length.
     /// - Returns `Error::<T, I>::AuthorityIdIncrementFailed` if the `from` ID cannot be incremented.
     pub fn get_authorities(

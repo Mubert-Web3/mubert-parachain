@@ -145,20 +145,24 @@ fn test_set_author() {
 fn test_add_new_authority() {
     new_test_ext().execute_with(|| {
         System::set_block_number(1);
+        NftsSupport::<Test>::set(Some(true));
 
         // Case 1: Successfully add a new authority
         let name: BoundedVec<u8, MaxShortStringLength> = vec![1, 2, 3].try_into().unwrap();
+        let collection_config = Some(0);
 
         assert_ok!(CustomPallet::add_new_authority(
             0,
             name.clone(),
             AuthorityKind::Label,
+            collection_config
         ));
 
         // Verify the authority is added
         let authority_details = Authorities::<Test>::get(0).unwrap();
         assert_eq!(authority_details.name.to_vec(), vec![1, 2, 3]);
         assert_eq!(authority_details.authority_kind, AuthorityKind::Label);
+        assert_eq!(authority_details.collection_id, Some(0));
     });
 }
 
@@ -166,45 +170,74 @@ fn test_add_new_authority() {
 fn test_set_authority() {
     new_test_ext().execute_with(|| {
         System::set_block_number(1);
+        NftsSupport::<Test>::set(Some(true));
 
-        add_authority_access_for_test(0, 0);
+        add_authority_access_for_test(0, 0, None);
 
         // Case 1: Successfully update the authority's name, owner, and kind
         let new_name: Option<BoundedVec<u8, MaxShortStringLength>> =
             Some(vec![4, 5, 6].try_into().unwrap());
+        let collection_config = Some(0u8);
 
         assert_ok!(CustomPallet::set_authority(
             0,
             0,
             new_name.clone(),
             Some(AuthorityKind::Musician),
+            collection_config,
         ));
 
         // Verify the updates
         let updated_authority = Authorities::<Test>::get(0).unwrap();
         assert_eq!(updated_authority.name.to_vec(), vec![4, 5, 6]);
         assert_eq!(updated_authority.authority_kind, AuthorityKind::Musician);
+        assert_eq!(updated_authority.collection_id, Some(0));
 
         // Case 2: Attempt to update a non-existent authority
         assert_err!(
-            CustomPallet::set_authority(0, 1, new_name.clone(), Some(AuthorityKind::Musician),),
+            CustomPallet::set_authority(
+                0,
+                1,
+                new_name.clone(),
+                Some(AuthorityKind::Musician),
+                None
+            ),
             Error::<Test, _>::AuthoritiesAccessNotFound,
         );
 
-        add_authority_access_for_test(1, 1);
+        add_authority_access_for_test(1, 1, None);
 
         assert_err!(
-            CustomPallet::set_authority(0, 1, new_name.clone(), Some(AuthorityKind::Musician),),
+            CustomPallet::set_authority(
+                0,
+                1,
+                new_name.clone(),
+                Some(AuthorityKind::Musician),
+                None
+            ),
             Error::<Test, _>::AuthoritiesAccessNotFound,
+        );
+
+        // test AuthorityNftCollectionIdAlreadyExist error
+        assert_err!(
+            CustomPallet::set_authority(
+                0,
+                0,
+                new_name.clone(),
+                Some(AuthorityKind::Musician),
+                Some(1),
+            ),
+            Error::<Test, _>::AuthorityNftCollectionIdAlreadyExist,
         );
 
         // Case 3: No changes provided (name, owner, and kind are None)
-        assert_ok!(CustomPallet::set_authority(0, 0, None, None));
+        assert_ok!(CustomPallet::set_authority(0, 0, None, None, None));
 
         // Verify no changes were made
         let unchanged_authority = Authorities::<Test>::get(0).unwrap();
         assert_eq!(unchanged_authority.name.to_vec(), vec![4, 5, 6]);
         assert_eq!(unchanged_authority.authority_kind, AuthorityKind::Musician);
+        assert_eq!(unchanged_authority.collection_id, Some(0));
     });
 }
 
@@ -213,7 +246,7 @@ fn test_add_new_entity() {
     new_test_ext().execute_with(|| {
         System::set_block_number(1);
 
-        add_authority_access_for_test(0, 0);
+        add_authority_access_for_test(0, 0, Some(0));
         add_author_for_test(0, 0);
 
         // Case 1: Successfully add a new entity
@@ -230,7 +263,10 @@ fn test_add_new_entity() {
             MetadataFeatures::default(),
             Some(vec![0].try_into().unwrap()),
             None,
-            None
+            None,
+            Some(0u32),
+            Some(0),
+            None,
         ));
 
         // Verify the entity is added
@@ -238,6 +274,8 @@ fn test_add_new_entity() {
         assert_eq!(entity_details.entity_kind, IPEntityKind::Track);
         assert_eq!(entity_details.owner, 0);
         assert_eq!(entity_details.metadata.url.to_vec(), vec![4, 5, 6]);
+        assert_eq!(entity_details.collection_id, Some(0));
+        assert_eq!(entity_details.item_id, Some(0));
     });
 }
 
@@ -245,9 +283,10 @@ fn test_add_new_entity() {
 fn test_set_entity() {
     new_test_ext().execute_with(|| {
         System::set_block_number(1);
+        NftsSupport::<Test>::set(Some(true));
 
-        add_authority_access_for_test(0, 0);
-        add_authority_access_for_test(1, 1);
+        add_authority_access_for_test(0, 0, Some(0));
+        add_authority_access_for_test(1, 1, Some(1));
 
         // Insert an entity into storage
         Entities::<Test>::insert(
@@ -263,6 +302,8 @@ fn test_set_entity() {
                     standard: MetadataStandard::M25,
                     features: Default::default(),
                 },
+                collection_id: None,
+                item_id: None,
             },
         );
 
@@ -290,7 +331,10 @@ fn test_set_entity() {
             new_owner,
             Some(vec![0].try_into().unwrap()),
             None,
-            None
+            None,
+            Some(1u32),
+            Some(0),
+            None,
         ));
 
         // Verify the updates
@@ -298,6 +342,8 @@ fn test_set_entity() {
         assert_eq!(updated_entity.metadata.url.to_vec(), vec![7, 8, 9]);
         assert_eq!(updated_entity.owner, 1);
         assert_eq!(updated_entity.authors.unwrap(), vec![0]);
+        assert_eq!(updated_entity.collection_id, Some(1));
+        assert_eq!(updated_entity.item_id, Some(1));
 
         // Case 2: Attempt to update a non-existent entity
         assert_err!(
@@ -310,7 +356,10 @@ fn test_set_entity() {
                 new_owner,
                 Some(vec![0].try_into().unwrap()),
                 None,
-                None
+                None,
+                None,
+                None,
+                None,
             ),
             Error::<Test, _>::EntityNotFound
         );
@@ -328,9 +377,30 @@ fn test_set_entity() {
                 None,
                 invalid_authors,
                 None,
-                None
+                None,
+                None,
+                None,
+                None,
             ),
             Error::<Test, _>::EntityAuthorNotFound
+        );
+
+        assert_err!(
+            CustomPallet::set_entity(
+                1,
+                0,
+                None,
+                Some(MetadataStandard::M25),
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(5),
+                Some(0),
+                None,
+            ),
+            Error::<Test, _>::EntityNftImmutable
         );
 
         // Case 4: No changes provided
@@ -343,7 +413,10 @@ fn test_set_entity() {
             None,
             None,
             None,
-            None
+            None,
+            None,
+            None,
+            None,
         ));
 
         // Verify no changes were made
@@ -351,6 +424,66 @@ fn test_set_entity() {
         assert_eq!(unchanged_entity.metadata.url.to_vec(), vec![7, 8, 9]);
         assert_eq!(unchanged_entity.owner, 1);
         assert_eq!(unchanged_entity.authors.unwrap(), vec![0]);
+        assert_eq!(unchanged_entity.collection_id, Some(1));
+        assert_eq!(unchanged_entity.item_id, Some(1));
+    });
+}
+
+#[test]
+fn test_set_entity_nft_owner_must_be_specified() {
+    new_test_ext().execute_with(|| {
+        System::set_block_number(1);
+        NftsSupport::<Test>::set(Some(true));
+
+        add_authority_access_for_test(0, 0, Some(0));
+        add_authority_access_for_test(1, 1, Some(1));
+
+        // Insert an entity into storage
+        Entities::<Test>::insert(
+            0,
+            EntityDetails {
+                entity_kind: IPEntityKind::Track,
+                owner: 0,
+                authors: None,
+                royalty_parts: None,
+                related_to: None,
+                metadata: Metadata {
+                    url: vec![4, 5, 6].try_into().unwrap(),
+                    standard: MetadataStandard::M25,
+                    features: Default::default(),
+                },
+                collection_id: None,
+                item_id: None,
+            },
+        );
+
+        // Insert authors into storage
+        Authors::<Test>::insert(
+            0,
+            AuthorDetails {
+                nickname: vec![1].try_into().unwrap(),
+                real_name: Some(vec![2].try_into().unwrap()),
+                owner: 0,
+            },
+        );
+
+        assert_err!(
+            CustomPallet::set_entity(
+                0,
+                0,
+                None,
+                Some(MetadataStandard::M25),
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(5),
+                None,
+                None,
+            ),
+            Error::<Test, _>::EntityNftOwnerMustBeSpecified
+        );
     });
 }
 
@@ -379,7 +512,7 @@ fn test_add_access() {
         let account_id: _ = 2;
         let access = AuthorityAccessSettings::all();
 
-        add_authority_access_for_test(origin, authority_id);
+        add_authority_access_for_test(origin, authority_id, None);
 
         assert_ok!(CustomPallet::add_access(
             origin,
@@ -402,7 +535,7 @@ fn test_set_access() {
         let authority_id: _ = 1;
         let new_access = AuthorityAccessSettings::none();
 
-        add_authority_access_for_test(account_id, authority_id);
+        add_authority_access_for_test(account_id, authority_id, None);
         AuthoritiesAccess::<Test>::insert(authority_id, account_id, AuthorityAccessSettings::all());
 
         assert_ok!(CustomPallet::set_access(
@@ -430,7 +563,7 @@ fn test_ensure_access_right() {
         let authority_id: _ = 0;
         let account_id: _ = 1;
 
-        add_authority_access_for_test(account_id, authority_id);
+        add_authority_access_for_test(account_id, authority_id, None);
 
         assert_ok!(CustomPallet::ensure_access_right(
             &account_id,
@@ -450,15 +583,31 @@ fn test_ensure_access_right() {
     });
 }
 
+#[test]
+fn test_toggle_nfts_support() {
+    new_test_ext().execute_with(|| {
+        System::set_block_number(1);
+        NftsSupport::<Test>::set(None);
+
+        assert_ok!(CustomPallet::toggle_nfts_support());
+        assert_eq!(NftsSupport::<Test>::get(), Some(true));
+
+        assert_ok!(CustomPallet::toggle_nfts_support());
+        assert_eq!(NftsSupport::<Test>::get(), Some(false));
+    });
+}
+
 fn add_authority_access_for_test(
     account_id: <Test as frame_system::Config>::AccountId,
     authority_id: <Test as Config>::AuthorityId,
+    collection_id: Option<<Test as Config>::CollectionId>,
 ) {
     Authorities::<Test>::insert(
         authority_id,
         AuthorityDetails {
             authority_kind: AuthorityKind::Label,
             name: vec![1, 2, 3].try_into().unwrap(),
+            collection_id,
         },
     );
 

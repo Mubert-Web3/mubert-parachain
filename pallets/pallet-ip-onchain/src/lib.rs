@@ -1,12 +1,20 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![recursion_limit = "256"]
 
+use polkadot_sdk::pallet_nfts;
+use polkadot_sdk::pallet_nfts::ItemConfig;
 use polkadot_sdk::polkadot_sdk_frame as frame;
 
 use frame::traits::Contains;
 
 use frame::prelude::*;
-use frame::traits::Incrementable;
+
+use frame::traits::{
+    tokens::nonfungibles_v2::{Create, Mutate},
+    Currency, Get, Incrementable,
+};
+
+use scale_codec::{Decode, Encode, MaxEncodedLen};
 
 mod features;
 mod types;
@@ -17,7 +25,7 @@ pub mod external_nfts_macros;
 pub mod weights;
 
 #[cfg(test)]
-mod mock;
+pub mod mock;
 
 #[cfg(test)]
 mod tests;
@@ -87,10 +95,30 @@ pub mod pallet {
 
         type WhiteListChecker: Contains<Self::AccountId>;
 
+        type CollectionId: Member + Parameter + MaxEncodedLen + Copy + Incrementable;
+        type ItemId: Member + Parameter + MaxEncodedLen + Copy;
+
+        type CollectionConfig: Default
+            + MaxEncodedLen
+            + TypeInfo
+            + Decode
+            + Encode
+            + PartialEq
+            + Debug
+            + Clone;
+
+        type Nfts: Mutate<Self::AccountId, ItemConfig, ItemId = Self::ItemId>
+            + Create<Self::AccountId, Self::CollectionConfig, CollectionId = Self::CollectionId>;
+
+        type Currency: Currency<Self::AccountId>;
+
         type RuntimeEvent: From<Event<Self, I>>
             + IsType<<Self as polkadot_sdk::frame_system::Config>::RuntimeEvent>;
 
         type WeightInfo: weights::WeightInfo;
+
+        #[cfg(feature = "runtime-benchmarks")]
+        type BenchmarkHelper: BenchmarkHelper<Self::CollectionId, Self::ItemId>;
     }
 
     #[pallet::storage]
@@ -133,6 +161,9 @@ pub mod pallet {
     #[pallet::storage]
     pub type NextEntityId<T: Config<I>, I: 'static = ()> =
         StorageValue<_, T::EntityId, OptionQuery>;
+
+    #[pallet::storage]
+    pub type NftsSupport<T: Config<I>, I: 'static = ()> = StorageValue<_, bool>;
 
     /// Events
     #[pallet::event]
@@ -183,6 +214,8 @@ pub mod pallet {
         AuthorityAlreadyExists,
         AuthorityNotFound,
         AuthorityIdIncrementFailed,
+        /// Authority nft extension Error
+        AuthorityNftCollectionIdAlreadyExist,
 
         /// AuthoritiesAccess
         AuthoritiesAccessNotFound,
@@ -195,6 +228,8 @@ pub mod pallet {
         EntityIdIncrementFailed,
         EntityAuthorNotFound,
         EntityRelatedEntityNotFound,
+        EntityNftOwnerMustBeSpecified,
+        EntityNftImmutable,
 
         /// General Errors
         Overflow, // checked_add failed
@@ -252,13 +287,14 @@ pub mod pallet {
             origin: OriginFor<T>,
             name: BoundedVec<u8, T::MaxShortStringLength>,
             authority_kind: AuthorityKind,
+            collection_cfg: Option<T::CollectionConfig>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
             ensure!(
                 T::WhiteListChecker::contains(&origin),
                 Error::<T, I>::NotWhitelisted
             );
-            Self::add_new_authority(origin, name, authority_kind)?;
+            Self::add_new_authority(origin, name, authority_kind, collection_cfg)?;
             Ok(())
         }
         #[pallet::call_index(3)]
@@ -268,13 +304,20 @@ pub mod pallet {
             authority_id: T::AuthorityId,
             name: Option<BoundedVec<u8, T::MaxShortStringLength>>,
             authority_kind: Option<AuthorityKind>,
+            init_collection_id: Option<T::CollectionConfig>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
             ensure!(
                 T::WhiteListChecker::contains(&origin),
                 Error::<T, I>::NotWhitelisted
             );
-            Self::set_authority(origin, authority_id, name, authority_kind)?;
+            Self::set_authority(
+                origin,
+                authority_id,
+                name,
+                authority_kind,
+                init_collection_id,
+            )?;
             Ok(())
         }
 
@@ -291,6 +334,9 @@ pub mod pallet {
             authors: Option<BoundedVec<T::AuthorId, T::MaxEntityAuthors>>,
             royalty_parts: Option<BoundedVec<Wallet<T::AccountId>, T::MaxRoyaltyParts>>,
             related_entities: Option<BoundedVec<T::EntityId, T::MaxRelatedEntities>>,
+            nft_item_id: Option<T::ItemId>,
+            nft_owner: Option<T::AccountId>,
+            nft_item_config: Option<pallet_nfts::ItemConfig>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
             ensure!(
@@ -307,6 +353,9 @@ pub mod pallet {
                 authors,
                 royalty_parts,
                 related_entities,
+                nft_item_id,
+                nft_owner,
+                nft_item_config,
             )?;
             Ok(())
         }
@@ -322,6 +371,9 @@ pub mod pallet {
             authors: Option<BoundedVec<T::AuthorId, T::MaxEntityAuthors>>,
             royalty_parts: Option<BoundedVec<Wallet<T::AccountId>, T::MaxRoyaltyParts>>,
             related_entities: Option<BoundedVec<T::EntityId, T::MaxRelatedEntities>>,
+            nft_item_id: Option<T::ItemId>,
+            nft_owner: Option<T::AccountId>,
+            nft_item_config: Option<pallet_nfts::ItemConfig>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
             ensure!(
@@ -338,6 +390,9 @@ pub mod pallet {
                 authors,
                 royalty_parts,
                 related_entities,
+                nft_item_id,
+                nft_owner,
+                nft_item_config,
             )?;
             Ok(())
         }
@@ -374,6 +429,33 @@ pub mod pallet {
             );
             Self::set_access(origin, authority_id, account_id, access)?;
             Ok(())
+        }
+
+        #[pallet::call_index(8)]
+        #[pallet::weight(T::WeightInfo::call_toggle_nfts_support())]
+        pub fn call_toggle_nfts_support(origin: OriginFor<T>) -> DispatchResult {
+            ensure_root(origin)?;
+            Self::toggle_nfts_support()
+        }
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    pub trait BenchmarkHelper<CollectionId, ItemId> {
+        fn collection_id(i: u32) -> CollectionId;
+        fn item_id(i: u32) -> ItemId;
+    }
+    #[cfg(feature = "runtime-benchmarks")]
+    impl<CollectionId, ItemId> BenchmarkHelper<CollectionId, ItemId> for ()
+    where
+        CollectionId: From<u32>,
+        ItemId: From<u32>,
+    {
+        fn collection_id(i: u32) -> CollectionId {
+            i.into()
+        }
+
+        fn item_id(i: u32) -> ItemId {
+            i.into()
         }
     }
 }

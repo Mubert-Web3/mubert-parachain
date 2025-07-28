@@ -123,6 +123,9 @@ pub type EntityDetails = pallet_ip_onchain::EntityDetailsFor<Runtime>;
 pub type AuthorityDetails = pallet_ip_onchain::AuthorityDetailsFor<Runtime>;
 pub type AuthorDetails = pallet_ip_onchain::AuthorFor<Runtime>;
 
+pub type CollectionId = u64;
+pub type ItemId = u32;
+
 /// Handles converting a weight scalar to a fee value, based on the scale and granularity of the
 /// node's balance type.
 ///
@@ -328,6 +331,8 @@ mod runtime {
     pub type CumulusXcm = cumulus_pallet_xcm;
     #[runtime::pallet_index(33)]
     pub type MessageQueue = pallet_message_queue;
+    #[runtime::pallet_index(34)]
+    pub type NFTs = pallet_nfts;
 
     #[runtime::pallet_index(51)]
     pub type IPOnchain = pallet_ip_onchain;

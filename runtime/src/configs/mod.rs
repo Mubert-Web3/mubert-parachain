@@ -34,13 +34,13 @@ use polkadot_sdk::{staging_xcm_builder as xcm_builder, staging_xcm_executor as x
 use core::marker::PhantomData;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
-use frame_support::traits::OnTimestampSet;
 use frame_support::{
     derive_impl,
     dispatch::DispatchClass,
     parameter_types,
     traits::{
-        ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, TransformOrigin, VariantCountOf,
+        ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, OnTimestampSet, TransformOrigin,
+        VariantCountOf,
     },
     weights::{ConstantMultiplier, Weight},
     PalletId,
@@ -49,13 +49,14 @@ use frame_system::{
     limits::{BlockLength, BlockWeights},
     EnsureRoot,
 };
+use pallet_nfts::PalletFeatures;
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
     xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::Perbill;
+use sp_runtime::{traits::Verify, Perbill};
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
 
@@ -63,11 +64,12 @@ use xcm::latest::prelude::BodyId;
 use super::{
     weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
     AccountId, Aura, AuthorId, AuthorityId, Balance, Balances, BaseFee, Block, BlockNumber,
-    CollatorSelection, ConsensusHook, EVMChainId, EntityId, Hash, Membership, MessageQueue, Nonce,
-    PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason,
-    RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys, System, Timestamp,
-    WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
-    MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+    CollatorSelection, CollectionId, ConsensusHook, EVMChainId, EntityId, Hash, ItemId, Membership,
+    MessageQueue, NFTs, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
+    RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
+    Signature, System, Timestamp, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, DAYS,
+    EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, NORMAL_DISPATCH_RATIO,
+    SLOT_DURATION, UNIT, VERSION,
 };
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -354,9 +356,16 @@ impl pallet_ip_onchain::Config for Runtime {
     type MaxRelatedEntities = MaxRelatedEntities;
     type MaxArrayLen = MaxArrayLen;
     type WhiteListChecker = Membership;
+    type CollectionId = CollectionId;
+    type ItemId = ItemId;
+    type CollectionConfig = pallet_nfts::CollectionConfig<Balance, BlockNumber, CollectionId>;
+    type Nfts = NFTs;
+    type Currency = Balances;
 
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_ip_onchain::weights::SubstrateWeight<Runtime>;
+    #[cfg(feature = "runtime-benchmarks")]
+    type BenchmarkHelper = ();
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -380,4 +389,47 @@ impl pallet_membership::Config for Runtime {
     type MembershipChanged = ();
     type MaxMembers = ConstU32<100>;
     type WeightInfo = ();
+}
+
+parameter_types! {
+    pub Features: PalletFeatures = PalletFeatures::all_enabled();
+    pub const MaxAttributesPerCall: u32 = 10;
+    pub const CollectionDeposit: Balance = 100 * UNIT;
+    pub const ItemDeposit: Balance = 1 * UNIT;
+    pub const ApprovalsLimit: u32 = 20;
+    pub const ItemAttributesApprovalsLimit: u32 = 20;
+    pub const MaxTips: u32 = 10;
+    pub const MaxDeadlineDuration: BlockNumber = 12 * 30 * DAYS;
+    pub const MetadataDepositBase: Balance = 10 * UNIT;
+    pub const AttributeDepositBase: Balance = 10 * UNIT;
+    pub const DepositPerByte: Balance = 1 * UNIT;
+}
+
+impl pallet_nfts::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type CollectionId = CollectionId;
+    type ItemId = ItemId;
+    type Currency = Balances;
+    type ForceOrigin = EnsureRoot<AccountId>;
+    type CreateOrigin = frame_system::EnsureNever<AccountId>;
+    type Locker = ();
+    type CollectionDeposit = CollectionDeposit;
+    type ItemDeposit = ItemDeposit;
+    type MetadataDepositBase = MetadataDepositBase;
+    type AttributeDepositBase = AttributeDepositBase;
+    type DepositPerByte = DepositPerByte;
+    type StringLimit = ConstU32<256>;
+    type KeyLimit = ConstU32<64>;
+    type ValueLimit = ConstU32<256>;
+    type ApprovalsLimit = ApprovalsLimit;
+    type ItemAttributesApprovalsLimit = ItemAttributesApprovalsLimit;
+    type MaxTips = MaxTips;
+    type MaxDeadlineDuration = MaxDeadlineDuration;
+    type MaxAttributesPerCall = MaxAttributesPerCall;
+    type Features = Features;
+    type OffchainSignature = Signature;
+    type OffchainPublic = <Signature as Verify>::Signer;
+    #[cfg(feature = "runtime-benchmarks")]
+    type Helper = ();
+    type WeightInfo = pallet_nfts::weights::SubstrateWeight<Runtime>;
 }

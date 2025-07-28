@@ -13,8 +13,15 @@ use scale_codec::EncodeLike;
 use scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::{build::Fields, meta_type, Path, Type, TypeInfo, TypeParameter};
 
+use frame::traits::Currency;
+
+pub type BalanceOf<T, I = ()> =
+    <<T as Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
 /// Authority
-pub type AuthorityDetailsFor<T, I = ()> = AuthorityDetails<<T as Config<I>>::MaxShortStringLength>;
+pub type AuthorityDetailsFor<T, I = ()> =
+    AuthorityDetails<<T as Config<I>>::MaxShortStringLength, <T as Config<I>>::CollectionId>;
+
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum AuthorityKind {
@@ -25,9 +32,10 @@ pub enum AuthorityKind {
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[scale_info(skip_type_params(ShortStringLimit))]
-pub struct AuthorityDetails<ShortStringLimit: Get<u32>> {
+pub struct AuthorityDetails<ShortStringLimit: Get<u32>, CollectionId> {
     pub authority_kind: AuthorityKind,
     pub name: BoundedVec<u8, ShortStringLimit>,
+    pub collection_id: Option<CollectionId>,
 }
 
 /// Author
@@ -56,6 +64,8 @@ pub type EntityDetailsFor<T, I = ()> = EntityDetails<
     <T as Config<I>>::MaxEntityAuthors,
     <T as Config<I>>::MaxRoyaltyParts,
     <T as Config<I>>::MaxRelatedEntities,
+    <T as Config<I>>::CollectionId,
+    <T as Config<I>>::ItemId,
 >;
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
@@ -70,6 +80,8 @@ pub struct EntityDetails<
     MaxEntityAuthors: Get<u32>,
     MaxRoyaltyParts: Get<u32>,
     MaxRelatedEntities: Get<u32>,
+    CollectionId,
+    ItemId,
 > {
     pub entity_kind: IPEntityKind,
     pub owner: AuthorityId,
@@ -79,6 +91,9 @@ pub struct EntityDetails<
     pub related_to: Option<BoundedVec<EntityId, MaxRelatedEntities>>,
 
     pub metadata: Metadata,
+
+    pub collection_id: Option<CollectionId>,
+    pub item_id: Option<ItemId>,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
@@ -129,6 +144,8 @@ pub enum AuthorityAccessSetting {
     EditEntity,
 
     EditAuthority,
+
+    CreateAuthorityCollection,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, RuntimeDebug)]
