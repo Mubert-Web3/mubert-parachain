@@ -1,7 +1,12 @@
+use polkadot_sdk::pallet_nfts::ItemConfig;
 use polkadot_sdk::polkadot_sdk_frame as frame;
 
 use frame::{
-    deps::frame_system::GenesisConfig, prelude::*, runtime::prelude::*, testing_prelude::*,
+    deps::frame_system::GenesisConfig,
+    prelude::*,
+    runtime::prelude::*,
+    testing_prelude::*,
+    traits::tokens::nonfungibles_v2::{Create, Inspect, Mutate},
 };
 
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -64,8 +69,57 @@ impl crate::Config for Test {
     type MaxRelatedEntities = MaxRelatedEntities;
     type MaxArrayLen = MaxArrayLen;
     type WhiteListChecker = TestWhiteListChecker;
+    type CollectionId = u32;
+    type ItemId = u32;
+    type CollectionConfig = u8;
+    type Nfts = NftsMock;
+    type Currency = ();
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
+    #[cfg(feature = "runtime-benchmarks")]
+    type BenchmarkHelper = ();
+}
+
+pub struct NftsMock {}
+
+impl Inspect<u64> for NftsMock {
+    type ItemId = u32;
+    type CollectionId = u32;
+
+    fn owner(_collection: &Self::CollectionId, _item: &Self::ItemId) -> Option<u64> {
+        Some(1)
+    }
+}
+
+impl Mutate<u64, ItemConfig> for NftsMock {
+    fn mint_into(
+        _collection: &Self::CollectionId,
+        _item: &Self::ItemId,
+        _who: &u64,
+        _config: &ItemConfig,
+        _deposit_collection_owner: bool,
+    ) -> DispatchResult {
+        Ok(())
+    }
+}
+
+impl Create<u64, u8> for NftsMock {
+    fn create_collection(
+        _who: &u64,
+        _admin: &u64,
+        config: &u8,
+    ) -> Result<Self::CollectionId, DispatchError> {
+        Ok(*config as u32)
+    }
+
+    fn create_collection_with_id(
+        _collection: Self::CollectionId,
+        _who: &u64,
+        _admin: &u64,
+        _config: &u8,
+    ) -> Result<(), DispatchError> {
+        Err(TokenError::Unsupported.into())
+    }
 }
 
 // Test externalities initialization
