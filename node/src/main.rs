@@ -9,6 +9,7 @@ mod cli;
 mod command;
 mod eth;
 mod rpc;
+mod rpc_arweave;
 mod service;
 
 fn main() -> sc_cli::Result<()> {

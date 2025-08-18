@@ -126,6 +126,8 @@ pub type AuthorDetails = pallet_ip_onchain::AuthorFor<Runtime>;
 pub type CollectionId = u64;
 pub type ItemId = u32;
 
+pub type TaskId = u64;
+
 /// Handles converting a weight scalar to a fee value, based on the scale and granularity of the
 /// node's balance type.
 ///
@@ -336,6 +338,8 @@ mod runtime {
 
     #[runtime::pallet_index(51)]
     pub type IPOnchain = pallet_ip_onchain;
+    #[runtime::pallet_index(52)]
+    pub type Arweave = pallet_arweave;
 
     #[runtime::pallet_index(60)]
     pub type EVM = pallet_evm;

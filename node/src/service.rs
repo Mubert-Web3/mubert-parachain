@@ -47,11 +47,14 @@ use std::{collections::BTreeMap, sync::Mutex};
 
 use fc_storage::{StorageOverride, StorageOverrideHandler};
 
-use crate::cli::EthConfiguration;
+use crate::cli::{ArweaveConfig, EthConfiguration};
 use crate::eth::{spawn_frontier_tasks, EthDependencies};
 
 #[docify::export(wasm_executor)]
-type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
+type ParachainExecutor = WasmExecutor<(
+    ParachainHostFunctions,
+    arweave_rust::ar_runtime_interface::arweave_extension::HostFunctions,
+)>;
 
 pub type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
 
@@ -277,6 +280,7 @@ pub async fn start_parachain_node(
     parachain_config: Configuration,
     polkadot_config: Configuration,
     ethereum_config: EthConfiguration,
+    arweave_config: ArweaveConfig,
     collator_options: CollatorOptions,
     para_id: ParaId,
     hwbench: Option<sc_sysinfo::HwBench>,
@@ -336,6 +340,23 @@ pub async fn start_parachain_node(
         })
         .await?;
 
+    // arweave offchain worker setup
+    let signer_impl = if let Some(arweave_config) = arweave_config.arweave_secret_key_path {
+        let signer =
+            arweave_rust::ar_core::sign::RSASigner::parse_jwt_path(arweave_config).unwrap();
+
+        Some(Arc::new(
+            arweave_rust::ar_substrate::signer::ArweaveExtensionImpl {
+                signer: signer.clone(),
+                enabled: true.into(),
+            },
+        ))
+    } else {
+        None
+    };
+    // clone arweave signer for rpc usage
+    let signer_impl_rpc = signer_impl.clone();
+
     if parachain_config.offchain_worker.enabled {
         use futures::FutureExt;
 
@@ -349,8 +370,18 @@ pub async fn start_parachain_node(
                 )),
                 network_provider: Arc::new(network.clone()),
                 is_validator: parachain_config.role.is_authority(),
-                enable_http_requests: false,
-                custom_extensions: move |_| vec![],
+                enable_http_requests: true,
+                custom_extensions: move |_| {
+                    let mut custom = vec![];
+
+                    if let Some(signer) = signer_impl.clone() {
+                        custom.push(Box::new(
+                            arweave_rust::ar_substrate::extension::ArweaveSignerExt(signer.clone()),
+                        ) as Box<_>);
+                    };
+
+                    custom
+                },
             })?;
         task_manager.spawn_handle().spawn(
             "offchain-workers-runner",
@@ -426,8 +457,12 @@ pub async fn start_parachain_node(
                 pending_create_inherent_data_providers,
             };
 
-            let m = crate::rpc::create_full(client.clone(), transaction_pool.clone())
-                .map_err(Into::into);
+            let m = crate::rpc::create_full(
+                client.clone(),
+                transaction_pool.clone(),
+                signer_impl_rpc.clone(),
+            )
+            .map_err(Into::into);
             let m1 = crate::eth::create(
                 eth_deps,
                 subscription_task_executor,

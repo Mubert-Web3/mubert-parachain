@@ -1,0 +1,35 @@
+[package]
+name = "pallet-arweave"
+description = "FRAME pallet for upload data to arweave."
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+scale-codec = { features = ["derive", "serde"], workspace = true }
+scale-info = { features = ["derive", "serde"], workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["alloc"] }
+log = { workspace = true }
+
+polkadot-sdk = { workspace = true, features = [
+    "runtime",
+    "experimental",
+], default-features = false }
+
+thiserror = { workspace = true, default-features = false }
+arweave-rust = { workspace = true, features = ["ar-runtime-interface", "ar-substrate", "ar-errors"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = ["std"]
+runtime-benchmarks = ["polkadot-sdk/runtime-benchmarks"]
+std = ["thiserror/std", "scale-codec/std", "polkadot-sdk/std", "scale-info/std", "arweave-rust/std"]
+try-runtime = ["polkadot-sdk/try-runtime"]

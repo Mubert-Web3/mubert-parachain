@@ -66,11 +66,26 @@ cargo install frame-omni-bencher
 cargo build --workspace --release --features runtime-benchmarks
 ```
 
+pallet-ip-onchain
+
 ```sh
 frame-omni-bencher v1 benchmark pallet \
 --runtime ./target/release/wbuild/mubert-runtime/mubert_runtime.wasm \
 --pallet pallet_ip_onchain \
 --extrinsic "" \
 --template ./pallets/benchmarking/frame-weight-template.hbs \
---output ./pallets/pallet-ip-onchain/src/weights.rs
+--output ./pallets/pallet-ip-onchain/src/weights.rs \
+--allow-missing-host-functions 
+```
+
+pallet-arweave
+
+```sh
+frame-omni-bencher v1 benchmark pallet \
+--runtime ./target/release/wbuild/mubert-runtime/mubert_runtime.wasm \
+--pallet pallet_arweave \
+--extrinsic "" \
+--template ./pallets/benchmarking/frame-weight-template.hbs \
+--output ./pallets/pallet-arweave/src/weights.rs \
+--allow-missing-host-functions 
 ```

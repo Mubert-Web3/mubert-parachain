@@ -12,6 +12,7 @@ members = [
     "pallets/pallet-ip-onchain",
     "pallets/pallet-ip-onchain/runtime-api",
     "pallets/pallet-ip-onchain/rpc",
+    "pallets/pallet-arweave",
     "runtime",
 ]
 resolver = "2"
@@ -24,6 +25,8 @@ mubert-runtime = { path = "./runtime", default-features = false }
 pallet-ip-onchain = { path = "./pallets/pallet-ip-onchain", default-features = false }
 pallet-ip-onchain-runtime-api = { path = "./pallets/pallet-ip-onchain/runtime-api", default-features = false }
 pallet-ip-onchain-rpc = { path = "./pallets/pallet-ip-onchain/rpc", default-features = false }
+# Arweave
+pallet-arweave = { path = "./pallets/pallet-arweave", default-features = false }
 
 # Codecs
 scale-codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false, features = [
@@ -38,25 +41,18 @@ serde_json = { version = "1.0.132", default-features = false }
 # CLI
 clap = { version = "4.5.13", default-features = false }
 
-# TODO
-color-print = { version = "0.3.4", default-features = false }
-docify = { version = "0.2.9", default-features = false }
-futures = { version = "0.3.31", default-features = false }
-jsonrpsee = { version = "0.24.9", default-features = false }
-
 # LOGS
 log = { version = "0.4.22", default-features = false }
 enumflags2 = { version = "0.7.7", default-features = false }
 
+# Errors
+thiserror = { version = "2.0.12", default-features = false }
+
+# Substrate
 polkadot-sdk = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
 substrate-wasm-builder = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
 cumulus-pallet-parachain-system = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
 sc-tracing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
-
-# need a clean up
-prometheus-endpoint = { version = "0.17.1", default-features = false, package = "substrate-prometheus-endpoint" }
-hex-literal = { version = "0.4.1", default-features = false }
-smallvec = { version = "1.11.0", default-features = false }
 
 # Frontier Client
 fc-api = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
@@ -84,3 +80,15 @@ pallet-evm-chain-id = { git = "https://github.com/polkadot-evm/frontier.git", re
 pallet-evm-precompile-modexp = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
 pallet-evm-precompile-sha3fips = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
 pallet-evm-precompile-simple = { git = "https://github.com/polkadot-evm/frontier.git", rev = "c40fe8b48940cc79d4a1863cb0868550a1f9ddb1", default-features = false }
+
+# Arweave sdk
+arweave-rust = { git = "https://github.com/0tden/arweave-rust", branch = "stable2412", default-features = false }
+
+# Others
+color-print = { version = "0.3.4", default-features = false }
+docify = { version = "0.2.9", default-features = false }
+futures = { version = "0.3.31", default-features = false }
+jsonrpsee = { version = "0.24.9", default-features = false }
+prometheus-endpoint = { version = "0.17.1", default-features = false, package = "substrate-prometheus-endpoint" }
+hex-literal = { version = "0.4.1", default-features = false }
+smallvec = { version = "1.11.0", default-features = false }

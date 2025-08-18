@@ -35,4 +35,5 @@ polkadot_sdk::frame_benchmarking::define_benchmarks!(
     [cumulus_pallet_xcmp_queue, XcmpQueue]
     [pallet_ip_onchain, IPOnchain]
     [pallet_nfts, NFTs]
+    [pallet_arweave, Arweave]
 );

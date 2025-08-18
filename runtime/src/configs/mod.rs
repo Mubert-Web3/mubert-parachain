@@ -47,6 +47,7 @@ use frame_support::{
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
+    offchain::{CreateSignedTransaction, CreateTransactionBase},
     EnsureRoot,
 };
 use pallet_nfts::PalletFeatures;
@@ -56,7 +57,7 @@ use polkadot_runtime_common::{
     xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::{traits::Verify, Perbill};
+use sp_runtime::{generic::Era, traits::Verify, Perbill};
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
 
@@ -67,9 +68,12 @@ use super::{
     CollatorSelection, CollectionId, ConsensusHook, EVMChainId, EntityId, Hash, ItemId, Membership,
     MessageQueue, NFTs, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
     RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
-    Signature, System, Timestamp, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, DAYS,
-    EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, NORMAL_DISPATCH_RATIO,
-    SLOT_DURATION, UNIT, VERSION,
+    Signature, SignedExtra, SignedPayload, System, TaskId, Timestamp, UncheckedExtrinsic,
+    WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, DAYS, EXISTENTIAL_DEPOSIT, HOURS,
+    MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, UNIT, VERSION,
+};
+use crate::sp_api_hidden_includes_construct_runtime::hidden_include::sp_runtime::{
+    MultiSignature, MultiSigner, SaturatedConversion,
 };
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -432,4 +436,84 @@ impl pallet_nfts::Config for Runtime {
     #[cfg(feature = "runtime-benchmarks")]
     type Helper = ();
     type WeightInfo = pallet_nfts::weights::SubstrateWeight<Runtime>;
+}
+
+impl CreateSignedTransaction<pallet_arweave::Call<Runtime>> for Runtime {
+    fn create_signed_transaction<
+        C: frame_system::offchain::AppCrypto<MultiSigner, MultiSignature>,
+    >(
+        call: RuntimeCall,
+        public: Self::Public,
+        account: Self::AccountId,
+        nonce: Self::Nonce,
+    ) -> Option<Self::Extrinsic> {
+        use scale_codec::Encode;
+        use sp_runtime::traits::StaticLookup;
+
+        let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
+        let period = BlockHashCount::get()
+            .checked_next_power_of_two()
+            .map(|c| c / 2)
+            .unwrap_or(2) as u64;
+        let current_block = System::block_number()
+            .saturated_into::<u64>()
+            // The `System::block_number` is initialized with `n+1`,
+            // so the actual block number is `n`.
+            .saturating_sub(1);
+        let era = Era::mortal(period, current_block);
+        let extra: SignedExtra = (
+            frame_system::CheckNonZeroSender::<Runtime>::new(),
+            frame_system::CheckSpecVersion::<Runtime>::new(),
+            frame_system::CheckTxVersion::<Runtime>::new(),
+            frame_system::CheckGenesis::<Runtime>::new(),
+            frame_system::CheckEra::<Runtime>::from(era),
+            frame_system::CheckNonce::<Runtime>::from(nonce),
+            frame_system::CheckWeight::<Runtime>::new(),
+            pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+            cumulus_primitives_storage_weight_reclaim::StorageWeightReclaim::<Runtime>::new(),
+            frame_metadata_hash_extension::CheckMetadataHash::<Runtime>::new(false),
+        );
+
+        let raw_payload = SignedPayload::new(call.clone(), extra.clone())
+            .map_err(|e| {
+                log::warn!("Unable to create signed payload: {:?}", e);
+            })
+            .ok()?;
+        match raw_payload.using_encoded(|payload| C::sign(payload, public)) {
+            None => {
+                log::warn!("Unable to sign payload");
+                None
+            }
+            Some(signature) => Some(Self::Extrinsic::new_signed(call, address, signature, extra)),
+        }
+    }
+}
+
+impl CreateTransactionBase<pallet_arweave::Call<Runtime, ()>> for Runtime {
+    type Extrinsic = UncheckedExtrinsic;
+    type RuntimeCall = RuntimeCall;
+}
+
+impl frame_system::offchain::SigningTypes for Runtime {
+    type Public = <Signature as sp_runtime::traits::Verify>::Signer;
+    type Signature = Signature;
+}
+
+parameter_types! {
+     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    pub const MaxDataLength: u32 = 1*1024*1024; // 1Mb
+     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    pub const MaxTxHashLength: u32 = 1024;
+     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    pub const MaxSignedDataLength: u32 = 10*1024*1024; // 10Mb
+}
+
+impl pallet_arweave::Config for Runtime {
+    type AuthorityId = pallet_arweave::crypto::arweave::AuthId;
+    type TaskId = TaskId;
+    type MaxDataLength = MaxDataLength;
+    type MaxTxHashLength = MaxTxHashLength;
+    type MaxSignedDataLength = MaxSignedDataLength;
+    type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = ();
 }
