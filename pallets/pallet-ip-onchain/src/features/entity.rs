@@ -11,13 +11,16 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
     /// - Ensures the caller has the necessary access rights to create the entity.
     ///
     /// # Parameters
-    /// - `entity_kind`: Specifies the type of the entity (e.g., `Loop`, `Music`).
-    /// - `owner`: The authority ID of the owner associated with the entity.
-    /// - `url`: A bounded vector representing the metadata URL for the entity.
-    /// - `metadata_standard`: The metadata standard.
-    /// - `authors`: An optional bounded vector of author IDs associated with the entity.
-    /// - `royalty_parts`: An optional bounded vector of wallets representing the royalty distribution for the entity.
-    /// - `related_entities`: An optional bounded vector of entity IDs representing related entities.
+    /// - `entity_kind`: Specifies the type of the entity (e.g., `Loop`, `Music`, etc.).
+    /// - `owner`: The unique authority ID of the owner associated with the entity.
+    /// - `url`: A bounded vector containing the metadata URL for the entity.
+    /// - `metadata_standard`: The standard format for the metadata.
+    /// - `authors`: An optional bounded vector of author IDs linked to the entity.
+    /// - `royalty_parts`: An optional bounded vector of wallets defining the royalty distribution for the entity.
+    /// - `related_entities`: An optional bounded vector of entity IDs linked as related entities.
+    /// - `nft_item_id`: An optional NFT item ID associated with the entity.
+    /// - `nft_owner`: An optional account ID representing the owner of the NFT.
+    /// - `nft_item_config`: An optional configuration for the NFT item.
     ///
     /// # Errors
     /// - Returns `Error::<T, I>::EntityAlreadyExists` if the entity ID already exists in the storage.
@@ -38,12 +41,22 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         authors: Option<BoundedVec<T::AuthorId, T::MaxEntityAuthors>>,
         royalty_parts: Option<BoundedVec<Wallet<T::AccountId>, T::MaxRoyaltyParts>>,
         related_entities: Option<BoundedVec<T::EntityId, T::MaxRelatedEntities>>,
+        nft_item_id: Option<T::ItemId>,
+        nft_owner: Option<T::AccountId>,
+        nft_item_config: Option<pallet_nfts::ItemConfig>,
     ) -> DispatchResult {
         Self::ensure_access_right(&origin, &owner, AuthorityAccessSetting::CreateEntity.into())?;
+        let collection_id =
+            Self::mint_nft_for_entity(&owner, nft_item_id, nft_owner, nft_item_config)?;
         NextEntityId::<T, I>::try_mutate(|maybe_entity_id| -> DispatchResult {
             let entity_id = maybe_entity_id
                 .map_or(T::EntityId::initial_value(), Some)
                 .ok_or(Error::<T, I>::EntityIdIncrementFailed)?;
+
+            ensure!(
+                !Entities::<T, I>::contains_key(entity_id),
+                Error::<T, I>::EntityAlreadyExists
+            );
 
             let mut entity_details = EntityDetails {
                 entity_kind,
@@ -56,12 +69,9 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                     standard: metadata_standard,
                     features: metadata_features,
                 },
+                item_id: nft_item_id,
+                collection_id,
             };
-
-            ensure!(
-                !Entities::<T, I>::contains_key(entity_id),
-                Error::<T, I>::EntityAlreadyExists
-            );
 
             if let Some(new_authors) = authors {
                 ensure!(
@@ -117,11 +127,15 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
     /// - `authors`: An optional bounded vector of author IDs to update the entity's authors. If `None`, the `authors` field remains unchanged.
     /// - `royalty_parts`: An optional bounded vector of wallets representing the new royalty parts for the entity. If `None`, the `royalty_parts` field remains unchanged.
     /// - `related_entities`: An optional bounded vector of entity IDs representing the new related entities for the entity. If `None`, the `related_to` field remains unchanged.
+    /// - `nft_item_id`: An optional NFT item ID for the entity.
+    /// - `nft_owner`: An optional account ID for the NFT owner.
+    /// - `nft_item_config`: An optional configuration for the NFT item.
     ///
     /// # Errors
     /// - Returns `Error::<T, I>::EntityNotFound` if the entity with the given `entity_id` does not exist in the storage.
     /// - Returns `Error::<T, I>::EntityAuthorNotFound` if any of the provided authors do not exist in the `Authors` storage.
     /// - Returns `Error::<T, I>::EntityRelatedEntityNotFound` if any of the provided related entities do not exist in the `Entities` storage.
+    /// - Returns `Error::<T, I>::EntityNftImmutable` if caller try to rewrite item_id for entity.
     /// - Returns an access control error if the caller does not have the necessary rights to edit the entity.
     ///
     /// # Events
@@ -136,6 +150,9 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         authors: Option<BoundedVec<T::AuthorId, T::MaxEntityAuthors>>,
         royalty_parts: Option<BoundedVec<Wallet<T::AccountId>, T::MaxRoyaltyParts>>,
         related_entities: Option<BoundedVec<T::EntityId, T::MaxRelatedEntities>>,
+        nft_item_id: Option<T::ItemId>,
+        nft_owner: Option<T::AccountId>,
+        nft_item_config: Option<pallet_nfts::ItemConfig>,
     ) -> DispatchResult {
         Entities::<T, I>::try_mutate(entity_id, |maybe_entity| -> DispatchResult {
             let entity = maybe_entity.as_mut().ok_or(Error::<T, I>::EntityNotFound)?;
@@ -189,6 +206,25 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                     Error::<T, I>::EntityRelatedEntityNotFound
                 );
                 entity.related_to = Some(new_related_entities);
+            }
+
+            if let Some(nft_item_id) = nft_item_id {
+                ensure!(
+                    entity.collection_id.is_none() && entity.item_id.is_none(),
+                    Error::<T, I>::EntityNftImmutable
+                );
+
+                let collection_id = Self::mint_nft_for_entity(
+                    &entity.owner,
+                    Some(nft_item_id),
+                    nft_owner,
+                    nft_item_config,
+                )?;
+
+                if let Some(collection_id) = collection_id {
+                    entity.collection_id = Some(collection_id);
+                    entity.item_id = Some(nft_item_id);
+                };
             }
 
             Self::deposit_event(Event::EntityEdited { entity_id });

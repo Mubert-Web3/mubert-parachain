@@ -63,9 +63,15 @@ mod benchmarks {
     fn create_authority() {
         let caller: T::AccountId = whitelisted_caller();
         let name: BoundedVec<u8, T::MaxShortStringLength> = vec![1, 2, 3].try_into().unwrap();
+        let collection_cfg: T::CollectionConfig = Default::default();
 
         #[extrinsic_call]
-        create_authority(RawOrigin::Signed(caller), name, AuthorityKind::Label);
+        create_authority(
+            RawOrigin::Signed(caller),
+            name,
+            AuthorityKind::Label,
+            Some(collection_cfg),
+        );
 
         let authority_id = T::AuthorityId::initial_value().unwrap();
         assert!(Authorities::<T>::contains_key(authority_id));
@@ -75,12 +81,14 @@ mod benchmarks {
     fn edit_authority() {
         let caller: T::AccountId = whitelisted_caller();
         let authority_id: T::AuthorityId = T::AuthorityId::initial_value().unwrap();
+        let collection_cfg: T::CollectionConfig = Default::default();
 
         Authorities::<T>::insert(
             authority_id,
             AuthorityDetails {
                 authority_kind: AuthorityKind::Label,
                 name: vec![0].try_into().unwrap(),
+                collection_id: None,
             },
         );
 
@@ -99,6 +107,7 @@ mod benchmarks {
             authority_id,
             new_name,
             Some(AuthorityKind::Musician),
+            Some(collection_cfg),
         );
 
         let updated_authority = Authorities::<T>::get(authority_id).unwrap();
@@ -108,14 +117,20 @@ mod benchmarks {
     #[benchmark]
     fn create_entity() {
         let caller: T::AccountId = whitelisted_caller();
+        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value() / 100u8.into());
+
         let authority_id: T::AuthorityId = T::AuthorityId::initial_value().unwrap();
         let url: BoundedVec<u8, T::MaxLongStringLength> = vec![4, 5, 6].try_into().unwrap();
+
+        let collection_cfg: T::CollectionConfig = Default::default();
+        let collection_id = T::Nfts::create_collection(&caller, &caller, &collection_cfg).unwrap();
 
         Authorities::<T>::insert(
             authority_id,
             AuthorityDetails {
                 authority_kind: AuthorityKind::Label,
                 name: vec![0].try_into().unwrap(),
+                collection_id: Some(collection_id),
             },
         );
 
@@ -125,9 +140,11 @@ mod benchmarks {
             AuthorityAccessSettings::all(),
         );
 
+        let item_id: T::ItemId = T::BenchmarkHelper::item_id(1);
+
         #[extrinsic_call]
         create_entity(
-            RawOrigin::Signed(caller),
+            RawOrigin::Signed(caller.clone()),
             IPEntityKind::Track,
             authority_id,
             url,
@@ -135,6 +152,9 @@ mod benchmarks {
             MetadataFeatures::default(),
             None,
             None,
+            None,
+            Some(item_id),
+            Some(caller.clone()),
             None,
         );
 
@@ -145,8 +165,13 @@ mod benchmarks {
     #[benchmark]
     fn edit_entity() {
         let caller: T::AccountId = whitelisted_caller();
+        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value() / 100u8.into());
+
         let entity_id: T::EntityId = T::EntityId::initial_value().unwrap();
         let authority_id: T::AuthorityId = T::AuthorityId::initial_value().unwrap();
+
+        let collection_cfg: T::CollectionConfig = Default::default();
+        let collection_id = T::Nfts::create_collection(&caller, &caller, &collection_cfg).unwrap();
 
         AuthoritiesAccess::<T>::insert(
             authority_id,
@@ -158,7 +183,7 @@ mod benchmarks {
             entity_id,
             EntityDetails {
                 entity_kind: IPEntityKind::Track,
-                owner: authority_id.clone(),
+                owner: authority_id,
                 authors: None,
                 royalty_parts: None,
                 related_to: None,
@@ -167,23 +192,28 @@ mod benchmarks {
                     standard: MetadataStandard::M25,
                     features: Default::default(),
                 },
+                collection_id: None,
+                item_id: None,
             },
         );
 
         Authorities::<T>::insert(
-            authority_id.clone(),
+            authority_id,
             AuthorityDetails {
                 authority_kind: AuthorityKind::Label,
                 name: vec![0].try_into().unwrap(),
+                collection_id: Some(collection_id),
             },
         );
 
         let new_url: Option<BoundedVec<u8, T::MaxLongStringLength>> =
             Some(vec![7, 8, 9].try_into().unwrap());
 
+        let item_id: T::ItemId = T::BenchmarkHelper::item_id(1);
+
         #[extrinsic_call]
         edit_entity(
-            RawOrigin::Signed(caller),
+            RawOrigin::Signed(caller.clone()),
             entity_id,
             new_url,
             Some(MetadataStandard::M25),
@@ -191,6 +221,9 @@ mod benchmarks {
             None,
             None,
             None,
+            None,
+            Some(item_id),
+            Some(caller.clone()),
             None,
         );
 
@@ -210,6 +243,7 @@ mod benchmarks {
             AuthorityDetails {
                 authority_kind: AuthorityKind::Label,
                 name: vec![0].try_into().unwrap(),
+                collection_id: None,
             },
         );
 
@@ -245,6 +279,7 @@ mod benchmarks {
             AuthorityDetails {
                 authority_kind: AuthorityKind::Label,
                 name: vec![0].try_into().unwrap(),
+                collection_id: None,
             },
         );
 
@@ -264,6 +299,15 @@ mod benchmarks {
 
         let updated_access = AuthoritiesAccess::<T>::get(authority_id, account_id).unwrap();
         assert_eq!(updated_access, new_access);
+    }
+
+    #[benchmark]
+    fn call_toggle_nfts_support() {
+        #[extrinsic_call]
+        call_toggle_nfts_support(RawOrigin::Root);
+
+        let enabled = NftsSupport::<T>::get().unwrap();
+        assert_eq!(enabled, true);
     }
 
     impl_benchmark_test_suite!(IpOnchain, mock::new_test_ext(), mock::Test);
