@@ -68,6 +68,7 @@ cumulus-pallet-parachain-system.workspace = true
 
 pallet-ip-onchain = { workspace = true, default-features = false }
 pallet-ip-onchain-runtime-api = { workspace = true, default-features = false }
+pallet-arweave = { workspace = true, default-features = false }
 
 # Frontier
 fp-account = { workspace = true, features = ["serde"] }
@@ -100,6 +101,7 @@ std = [
     # Custom pallets
     "pallet-ip-onchain/std",
     "pallet-ip-onchain-runtime-api/std",
+    "pallet-arweave/std",
     # Frontier
     "fp-account/std",
     "fp-evm/std",
@@ -121,6 +123,7 @@ runtime-benchmarks = [
     "hex-literal",
     "polkadot-sdk/runtime-benchmarks",
     "pallet-ip-onchain/runtime-benchmarks",
+    "pallet-arweave/runtime-benchmarks",
     # Frontier
     "pallet-ethereum/runtime-benchmarks",
     "pallet-evm/runtime-benchmarks",
@@ -130,6 +133,7 @@ try-runtime = [
     "cumulus-pallet-parachain-system/try-runtime",
     "polkadot-sdk/try-runtime",
     "pallet-ip-onchain/try-runtime",
+    "pallet-arweave/try-runtime",
 ]
 
 # Enable the metadata hash generation.

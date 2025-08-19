@@ -269,6 +269,7 @@ pub fn run() -> Result<()> {
                     config,
                     polkadot_config,
                     cli.ethereum_config,
+                    cli.arweave_config,
                     collator_options,
                     id,
                     hwbench,

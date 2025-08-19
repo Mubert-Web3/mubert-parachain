@@ -87,6 +87,16 @@ pub struct Cli {
 
     #[clap(flatten)]
     pub ethereum_config: EthConfiguration,
+
+    #[clap(flatten)]
+    pub arweave_config: ArweaveConfig,
+}
+
+#[derive(Clone, Debug, clap::Parser)]
+pub struct ArweaveConfig {
+    /// Path to arweave secret jwt key.
+    #[arg(long)]
+    pub arweave_secret_key_path: Option<PathBuf>,
 }
 
 #[derive(Debug)]

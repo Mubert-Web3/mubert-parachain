@@ -53,6 +53,8 @@ fp-evm = { workspace = true, features = ["default"] }
 fp-rpc = { workspace = true, features = ["default"] }
 ## Frontier
 
+arweave-rust = { workspace = true, features = ["ar-runtime-interface", "ar-substrate", "ar-core"] }
+
 [build-dependencies]
 polkadot-sdk = { workspace = true, features = [
     "substrate-build-script-utils",
@@ -69,6 +71,7 @@ std = [
     "pallet-ip-onchain-rpc/std",
     "serde/std",
     "serde_json/std",
+    "arweave-rust/std"
 ]
 runtime-benchmarks = [
     "mubert-runtime/runtime-benchmarks",

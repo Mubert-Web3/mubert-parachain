@@ -19,3 +19,5 @@ id = 1000
 name = "charlie"
 ws_port = 9988
 command = "./target/release/mubert-node"
+args = ["--arweave-secret-key-path=.ignored/GvMBM9iXAQBRPKzhNxEPgqPay31IxXB1_865SpY6xrA.json"]
+#args = ["--arweave-secret-key-path=path_to_test_arweave_wallet.json"]

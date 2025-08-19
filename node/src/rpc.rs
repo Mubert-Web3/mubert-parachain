@@ -4,20 +4,22 @@
 //! capabilities that are specific to this project's runtime configuration.
 
 #![warn(missing_docs)]
-
+use polkadot_sdk::*;
 use std::sync::Arc;
+
+use arweave_rust::ar_substrate::signer::ArweaveExtensionImpl;
 
 use mubert_runtime::{
     opaque::Block, AccountId, AuthorDetails, AuthorId, AuthorityDetails, AuthorityId, Balance,
     EntityDetails, EntityId, Nonce,
 };
 
-use polkadot_sdk::*;
-
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
+
+use crate::rpc_arweave::{ArweaveSigner, ArweaveSignerApiServer};
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpsee::RpcModule<()>;
@@ -26,6 +28,7 @@ pub type RpcExtension = jsonrpsee::RpcModule<()>;
 pub fn create_full<C, P>(
     client: Arc<C>,
     pool: Arc<P>,
+    signer: Option<Arc<ArweaveExtensionImpl>>,
 ) -> Result<RpcExtension, Box<dyn std::error::Error + Send + Sync>>
 where
     C: ProvideRuntimeApi<Block>
@@ -57,6 +60,10 @@ where
     module.merge(System::new(client.clone(), pool).into_rpc())?;
     module.merge(TransactionPayment::new(client.clone()).into_rpc())?;
     module.merge(IpOnchainRpcHandler::new(client.clone()).into_rpc())?;
+
+    if let Some(signer) = signer {
+        module.merge(ArweaveSigner::new(client.clone(), signer).into_rpc())?;
+    }
 
     Ok(module)
 }
