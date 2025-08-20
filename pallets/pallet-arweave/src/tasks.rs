@@ -31,6 +31,12 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 
             Self::deposit_event(Event::TaskAdded { task_id });
 
+            let new_task_id = task_id
+                .increment()
+                .ok_or(Error::<T, I>::TaskIdIncrementFailed)?;
+
+            *maybe_task_id = Some(new_task_id);
+
             Ok(())
         })
     }
