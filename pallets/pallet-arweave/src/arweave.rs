@@ -81,7 +81,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         Ok(())
     }
 
-    pub fn arweave_get_transaction(tx_id: Vec<u8>) -> Result<(), OffchainWorkerError> {
+    pub fn arweave_get_transaction(tx_id: Vec<u8>) -> Result<u16, OffchainWorkerError> {
         let tx_id = String::from_utf8(tx_id).unwrap();
         let deadline = sp_io::offchain::timestamp().add(Duration::from_millis(5_000));
         let url = format!("https://arweave.net/tx/{}", tx_id);
@@ -96,17 +96,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
             .map_err(|_| http::Error::DeadlineReached)
             .map_err(|e| OffchainWorkerError::HttpRequestError(e))?
             .map_err(|e| OffchainWorkerError::HttpRequestError(e))?;
-        match response.code {
-            200 => {}
-            202 => {
-                return Err(OffchainWorkerError::ArweaveRustTransactionPending);
-            }
-            _ => {
-                log!(warn, "Unexpected status code: {}", response.code);
-                return Err(OffchainWorkerError::HttpRequestError(http::Error::Unknown));
-            }
-        };
-
-        Ok(())
+        
+        Ok(response.code)
     }
 }
