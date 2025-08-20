@@ -83,7 +83,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                                 task_key.as_bytes(),
                             );
 
-                            log!(warn, "arweave_post_transaction: {:?}", e);
+                            log!(error, "arweave_post_transaction: {:?}", e);
 
                             // move task state to sign stage
                             // to prevent arweave errors
@@ -91,6 +91,9 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                             commit_tasks.push((task_to_upload, None));
                         }
                     };
+                } else {
+                    task_to_upload.state = TaskState::Validate;
+                    commit_tasks.push((task_to_upload, None));
                 }
             }
         }
