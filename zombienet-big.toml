@@ -1,0 +1,25 @@
+[relaychain]
+default_command = "polkadot"
+
+chain = "rococo-local"
+
+[[relaychain.node_groups]]
+name = "a"
+count = 10
+
+[[parachains]]
+id = 100
+
+[[parachains.collators]]
+name = "charlie"
+rpc_port = 9944
+command = "./target/release/mubert-node"
+#args = ["--arweave-secret-key-path=path_to_test_arweave_wallet.json"]
+
+[[parachains.collator_groups]]
+name = "one"
+count = 10
+command = "./target/release/mubert-node"
+[parachains.collator_groups.collator]
+name = "collator"
+command = "./target/release/mubert-node"

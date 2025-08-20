@@ -1,6 +1,7 @@
 use crate::*;
 
 use arweave_rust::*;
+use polkadot_sdk::sp_runtime::offchain::http;
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
     pub fn sign_tasks(
@@ -83,7 +84,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                                 task_key.as_bytes(),
                             );
 
-                            log!(warn, "arweave_post_transaction: {:?}", e);
+                            log!(error, "arweave_post_transaction: {:?}", e);
 
                             // move task state to sign stage
                             // to prevent arweave errors
@@ -91,6 +92,9 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                             commit_tasks.push((task_to_upload, None));
                         }
                     };
+                } else {
+                    task_to_upload.state = TaskState::Validate;
+                    commit_tasks.push((task_to_upload, None));
                 }
             }
         }
@@ -107,10 +111,26 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
             log!(info, "validate: task_id={:?}", task_to_validate.task_id);
 
             if let Some(tx_hash) = &task_to_validate.tx_hash {
-                Self::arweave_get_transaction(tx_hash.to_vec())?;
+                let status_code = Self::arweave_get_transaction(tx_hash.to_vec())?;
 
-                task_to_validate.state = task_to_validate.state.next_state();
-                commit_tasks.push((task_to_validate, None));
+                match status_code {
+                    200 => {
+                        task_to_validate.state = task_to_validate.state.next_state();
+                        commit_tasks.push((task_to_validate, None));
+                    }
+                    202 => {
+                        return Err(OffchainWorkerError::ArweaveRustTransactionPending);
+                    }
+                    404 => {
+                        log!(warn, "Received 404 status_code from arweave, resubmit to sign: {}", status_code);
+                        task_to_validate.state = TaskState::Sign;
+                        commit_tasks.push((task_to_validate, None));
+                    }
+                    _ => {
+                        log!(warn, "Unexpected status code: {}", status_code);
+                        return Err(OffchainWorkerError::HttpRequestError(http::Error::Unknown));
+                    }
+                };
             };
         }
 

@@ -1,4 +1,8 @@
-use crate::{AccountId, BalancesConfig, CollatorSelectionConfig, MembershipConfig, ParachainInfoConfig, PolkadotXcmConfig, RuntimeGenesisConfig, SessionConfig, SessionKeys, SudoConfig, EXISTENTIAL_DEPOSIT};
+use crate::{
+    AccountId, BalancesConfig, CollatorSelectionConfig, MembershipConfig, ParachainInfoConfig,
+    PolkadotXcmConfig, RuntimeGenesisConfig, SessionConfig, SessionKeys, SudoConfig,
+    EXISTENTIAL_DEPOSIT,
+};
 
 use alloc::{format, vec, vec::Vec};
 
@@ -72,7 +76,9 @@ fn testnet_genesis(
             safe_xcm_version: Some(SAFE_XCM_VERSION),
             ..Default::default()
         },
-        sudo: SudoConfig { key: Some(root.clone()) },
+        sudo: SudoConfig {
+            key: Some(root.clone()),
+        },
         membership: MembershipConfig {
             members: BoundedVec::try_from(vec![
                 Sr25519Keyring::Alice.to_account_id(),
@@ -97,7 +103,8 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
 }
 
 fn development_config_genesis() -> Value {
-    let sudo_account = AccountId::from_ss58check("5Ev8iRRe9R9Ag4V7hDDnDCwsx9pahjxeR39Bbq7vW69xyKtF").unwrap();
+    let sudo_account =
+        AccountId::from_ss58check("5Ev8iRRe9R9Ag4V7hDDnDCwsx9pahjxeR39Bbq7vW69xyKtF").unwrap();
     testnet_genesis(
         // initial collators.
         vec![
@@ -110,12 +117,9 @@ fn development_config_genesis() -> Value {
                 Sr25519Keyring::Bob.to_account_id(),
                 get_from_seed::<GrandpaId>("Bob"),
                 Sr25519Keyring::Bob.public().into(),
-            )
+            ),
         ],
-        vec![
-            Sr25519Keyring::Alice.to_account_id(),
-            sudo_account.clone(),
-        ],
+        vec![Sr25519Keyring::Alice.to_account_id(), sudo_account.clone()],
         sudo_account,
         PARACHAIN_ID.into(),
     )
