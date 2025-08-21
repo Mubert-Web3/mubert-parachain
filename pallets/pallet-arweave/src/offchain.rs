@@ -18,7 +18,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 
             let tx = ar_runtime_interface::arweave_extension::signed_transaction(
                 task_to_sing.data.to_vec(),
-                fee,
+                fee*2,
                 last_tx.as_str(),
                 vec![(
                     "Content-Type".as_bytes().to_vec(),
