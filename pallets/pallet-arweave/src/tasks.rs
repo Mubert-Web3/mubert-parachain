@@ -2,10 +2,32 @@ use crate::*;
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
     pub(crate) fn add_new_task(
-        _origin: T::AccountId,
+        origin: T::AccountId,
         worker_address: T::AccountId,
         data: BoundedVec<u8, T::MaxDataLength>,
+        amount: BalanceOf<T, I>,
+        tips: BalanceOf<T, I>,
     ) -> DispatchResult {
+        let pallet_account = Self::account_id();
+
+        let ed = T::Currency::minimum_balance();
+        if T::Currency::free_balance(&pallet_account).is_zero() {
+            // If pallet account doesn't exist yet, the very first inbound transfer
+            // must be >= ED to create it via transfer.
+            ensure!(amount >= ed, Error::<T, I>::DepositTooSmallForNewAccount);
+        }
+
+        let deposit = amount
+            .checked_add(&tips)
+            .ok_or(Error::<T, I>::DepositOverflow)?;
+
+        T::Currency::transfer(
+            &origin,
+            &pallet_account,
+            deposit,
+            ExistenceRequirement::KeepAlive,
+        )?;
+
         NextTaskId::<T, I>::try_mutate(|maybe_task_id| -> DispatchResult {
             let task_id = maybe_task_id
                 .map_or(T::TaskId::initial_value(), Some)
@@ -26,6 +48,8 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                     data,
                     state: TaskState::Sign,
                     tx_hash: None,
+                    amount,
+                    tips,
                 },
             );
 
@@ -83,6 +107,22 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
             Error::<T, I>::TaskMustBeInClearState
         );
         ensure!(task.tx_hash.is_some(), Error::<T, I>::TaskHasNoResult);
+
+        let deposit = task
+            .amount
+            .checked_add(&task.tips)
+            .ok_or(Error::<T, I>::DepositOverflow)?;
+
+        let pallet_account = Self::account_id();
+
+        if !deposit.is_zero() {
+            T::Currency::transfer(
+                &pallet_account,
+                &task.worker_address,
+                deposit,
+                ExistenceRequirement::KeepAlive,
+            )?;
+        }
 
         TasksResults::<T, I>::insert(
             task_id,

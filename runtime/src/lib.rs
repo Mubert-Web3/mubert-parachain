@@ -335,6 +335,10 @@ mod runtime {
     pub type MessageQueue = pallet_message_queue;
     #[runtime::pallet_index(34)]
     pub type NFTs = pallet_nfts;
+    #[runtime::pallet_index(35)]
+    pub type Assets = pallet_assets;
+    #[runtime::pallet_index(36)]
+    pub type Treasury = pallet_treasury;
 
     #[runtime::pallet_index(51)]
     pub type IPOnchain = pallet_ip_onchain;

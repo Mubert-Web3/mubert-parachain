@@ -26,7 +26,9 @@
 mod eth;
 mod xcm_config;
 
-use polkadot_sdk::{staging_parachain_info as parachain_info, staging_xcm as xcm, *};
+use polkadot_sdk::{
+    pallet_treasury, staging_parachain_info as parachain_info, staging_xcm as xcm, *,
+};
 #[cfg(not(feature = "runtime-benchmarks"))]
 use polkadot_sdk::{staging_xcm_builder as xcm_builder, staging_xcm_executor as xcm_executor};
 
@@ -39,8 +41,11 @@ use frame_support::{
     dispatch::DispatchClass,
     parameter_types,
     traits::{
-        ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, OnTimestampSet, TransformOrigin,
-        VariantCountOf,
+        fungible,
+        fungible::{NativeFromLeft, NativeOrWithId, UnionOf},
+        tokens::{imbalance::ResolveTo, pay::PayAssetFromAccount, UnityAssetBalanceConversion},
+        AsEnsureOriginWithArg, ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, Imbalance,
+        OnTimestampSet, TransformOrigin, VariantCountOf,
     },
     weights::{ConstantMultiplier, Weight},
     PalletId,
@@ -48,33 +53,38 @@ use frame_support::{
 use frame_system::{
     limits::{BlockLength, BlockWeights},
     offchain::{CreateSignedTransaction, CreateTransactionBase},
-    EnsureRoot,
+    EnsureRoot, EnsureSigned, EnsureWithSuccess,
 };
 use pallet_nfts::PalletFeatures;
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
-use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
+use parachains_common::{
+    message_queue::{NarrowOriginToSibling, ParaIdToSibling},
+    AssetIdForTrustBackedAssets,
+};
 use polkadot_runtime_common::{
     xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::{generic::Era, traits::Verify, Perbill};
+use sp_runtime::{
+    codec, generic::Era, traits::Verify, MultiSignature, MultiSigner, Perbill, Permill,
+    SaturatedConversion,
+};
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
 
 // Local module imports
 use super::{
     weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
-    AccountId, Aura, AuthorId, AuthorityId, Balance, Balances, BaseFee, Block, BlockNumber,
+    AccountId, Assets, Aura, AuthorId, AuthorityId, Balance, Balances, BaseFee, Block, BlockNumber,
     CollatorSelection, CollectionId, ConsensusHook, EVMChainId, EntityId, Hash, ItemId, Membership,
     MessageQueue, NFTs, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
     RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
     Signature, SignedExtra, SignedPayload, System, TaskId, Timestamp, UncheckedExtrinsic,
     WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, DAYS, EXISTENTIAL_DEPOSIT, HOURS,
-    MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, UNIT, VERSION,
+    MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, MILLI_UNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, UNIT,
+    VERSION,
 };
-use crate::sp_api_hidden_includes_construct_runtime::hidden_include::sp_runtime::{
-    MultiSignature, MultiSigner, SaturatedConversion,
-};
+use sp_core::TypedGet;
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
 parameter_types! {
@@ -195,7 +205,8 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type OnChargeTransaction = pallet_transaction_payment::FungibleAdapter<Balances, ()>;
+    type OnChargeTransaction =
+        pallet_transaction_payment::FungibleAdapter<Balances, ToTreasury<Runtime>>;
     type WeightToFee = WeightToFee;
     type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
     type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
@@ -450,6 +461,31 @@ impl CreateSignedTransaction<pallet_arweave::Call<Runtime>> for Runtime {
         use scale_codec::Encode;
         use sp_runtime::traits::StaticLookup;
 
+        let has_task_id = match &call {
+            RuntimeCall::Arweave(inner) => match inner {
+                pallet_arweave::Call::sign_task_data { task_id, .. } => Some(task_id),
+                pallet_arweave::Call::update_task { task_id, .. } => Some(task_id),
+                _ => None,
+            },
+            _ => None,
+        };
+
+        log::info!("create_signed_transaction: has_task_id={:?}", has_task_id);
+
+        let tips: Balance = has_task_id.map_or_else(
+            || 0,
+            |task_id| {
+                pallet_arweave::Pallet::<Runtime>::get_task(&task_id)
+                    .map(|t| t.tips)
+                    .unwrap_or_else(|| {
+                        log::warn!("Task {:?} not found, tip = 0", task_id);
+                        0
+                    })
+            },
+        );
+
+        log::info!("create_signed_transaction: tips={:?}", tips);
+
         let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
         let period = BlockHashCount::get()
             .checked_next_power_of_two()
@@ -469,7 +505,7 @@ impl CreateSignedTransaction<pallet_arweave::Call<Runtime>> for Runtime {
             frame_system::CheckEra::<Runtime>::from(era),
             frame_system::CheckNonce::<Runtime>::from(nonce),
             frame_system::CheckWeight::<Runtime>::new(),
-            pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+            pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tips),
             cumulus_primitives_storage_weight_reclaim::StorageWeightReclaim::<Runtime>::new(),
             frame_metadata_hash_extension::CheckMetadataHash::<Runtime>::new(false),
         );
@@ -511,9 +547,129 @@ parameter_types! {
 impl pallet_arweave::Config for Runtime {
     type AuthorityId = pallet_arweave::crypto::arweave::AuthId;
     type TaskId = TaskId;
+    type Currency = Balances;
     type MaxDataLength = MaxDataLength;
     type MaxTxHashLength = MaxTxHashLength;
     type MaxSignedDataLength = MaxSignedDataLength;
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+    pub const TreasurySpendPeriod: BlockNumber = 1 * DAYS;
+    pub const TreasuryPayoutPeriod: BlockNumber = 7 * DAYS;
+    pub const TreasuryBurn: Permill = Permill::from_percent(0);
+    pub const TreasuryMaxApprovals: u32 = 100;
+        pub const MaxBalance: Balance = Balance::max_value();
+}
+
+pub struct TreasuryAccountId<R>(PhantomData<R>);
+impl<R: pallet_treasury::Config> TypedGet for TreasuryAccountId<R> {
+    type Type = <R as frame_system::Config>::AccountId;
+
+    fn get() -> R::AccountId {
+        pallet_treasury::Pallet::<R>::account_id()
+    }
+}
+pub type NativeAndAssets =
+    UnionOf<Balances, Assets, NativeFromLeft, NativeOrWithId<u32>, AccountId>;
+impl pallet_treasury::Config for Runtime {
+    type Currency = Balances;
+    type RejectOrigin = EnsureRoot<AccountId>;
+    type RuntimeEvent = RuntimeEvent;
+    type SpendPeriod = TreasurySpendPeriod;
+    type Burn = TreasuryBurn;
+    type PalletId = TreasuryPalletId;
+    type BurnDestination = ();
+    type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
+    type SpendFunds = ();
+    type MaxApprovals = TreasuryMaxApprovals;
+    type SpendOrigin = EnsureWithSuccess<EnsureRoot<AccountId>, AccountId, MaxBalance>;
+    type AssetKind = NativeOrWithId<u32>;
+    type Beneficiary = AccountId;
+    type BeneficiaryLookup = <Runtime as frame_system::Config>::Lookup;
+    type Paymaster = PayAssetFromAccount<NativeAndAssets, TreasuryAccountId<Runtime>>;
+    type BalanceConverter = UnityAssetBalanceConversion;
+    type PayoutPeriod = TreasuryPayoutPeriod;
+    #[cfg(feature = "runtime-benchmarks")]
+    type BenchmarkHelper = PalletTreasuryArguments;
+    type BlockNumberProvider = System;
+}
+
+pub struct ToTreasury<R>(PhantomData<R>);
+impl<R>
+    frame_support::traits::tokens::imbalance::OnUnbalanced<
+        fungible::Credit<R::AccountId, pallet_balances::Pallet<R>>,
+    > for ToTreasury<R>
+where
+    R: pallet_balances::Config + pallet_treasury::Config,
+    <R as frame_system::Config>::RuntimeEvent: From<pallet_balances::Event<R>>,
+{
+    fn on_unbalanceds(
+        mut fees_then_tips: impl Iterator<
+            Item = fungible::Credit<R::AccountId, pallet_balances::Pallet<R>>,
+        >,
+    ) {
+        if let Some(mut fees) = fees_then_tips.next() {
+            if let Some(tips) = fees_then_tips.next() {
+                tips.merge_into(&mut fees);
+            }
+            ResolveTo::<TreasuryAccountId<R>, pallet_balances::Pallet<R>>::on_unbalanced(fees)
+        }
+    }
+}
+
+parameter_types! {
+    pub const AssetDeposit: Balance = UNIT;
+    pub const AssetAccountDeposit: Balance = UNIT;
+    pub const ApprovalDeposit: Balance = 100 * MILLI_UNIT;
+    pub const AssetsStringLimit: u32 = 50;
+    pub const MetadataDepositPerByte: Balance = 10 * MILLI_UNIT;
+    pub const UnitBody: BodyId = BodyId::Unit;
+}
+
+impl pallet_assets::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Balance = Balance;
+    type AssetId = AssetIdForTrustBackedAssets;
+    type AssetIdParameter = codec::Compact<AssetIdForTrustBackedAssets>;
+    type Currency = Balances;
+    type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+    type ForceOrigin = EnsureRoot<AccountId>;
+    type AssetDeposit = AssetDeposit;
+    type MetadataDepositBase = MetadataDepositBase;
+    type MetadataDepositPerByte = MetadataDepositPerByte;
+    type ApprovalDeposit = ApprovalDeposit;
+    type StringLimit = AssetsStringLimit;
+    type Freezer = ();
+    type Extra = ();
+    type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
+    type CallbackHandle = ();
+    type AssetAccountDeposit = AssetAccountDeposit;
+    type RemoveItemsLimit = frame_support::traits::ConstU32<1000>;
+    #[cfg(feature = "runtime-benchmarks")]
+    type BenchmarkHelper = ();
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+use {polkadot_sdk::pallet_treasury::ArgumentsFactory, polkadot_sdk::sp_core::crypto::FromEntropy};
+
+#[cfg(feature = "runtime-benchmarks")]
+pub struct PalletTreasuryArguments;
+#[cfg(feature = "runtime-benchmarks")]
+impl ArgumentsFactory<NativeOrWithId<u32>, polkadot_sdk::sp_runtime::AccountId32>
+    for PalletTreasuryArguments
+{
+    fn create_asset_kind(seed: u32) -> NativeOrWithId<u32> {
+        if seed % 2 > 0 {
+            NativeOrWithId::Native
+        } else {
+            NativeOrWithId::WithId(seed / 2)
+        }
+    }
+
+    fn create_beneficiary(seed: [u8; 32]) -> polkadot_sdk::sp_runtime::AccountId32 {
+        polkadot_sdk::sp_runtime::AccountId32::from_entropy(&mut seed.as_slice()).unwrap()
+    }
 }
