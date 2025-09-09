@@ -190,7 +190,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: alloc::borrow::Cow::Borrowed("mubert-runtime"),
     impl_name: alloc::borrow::Cow::Borrowed("mubert-runtime"),
     authoring_version: 1,
-    spec_version: 6,
+    spec_version: 7,
     impl_version: 0,
     apis: apis::RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -335,6 +335,10 @@ mod runtime {
     pub type MessageQueue = pallet_message_queue;
     #[runtime::pallet_index(34)]
     pub type NFTs = pallet_nfts;
+    #[runtime::pallet_index(35)]
+    pub type Assets = pallet_assets;
+    #[runtime::pallet_index(36)]
+    pub type Treasury = pallet_treasury;
 
     #[runtime::pallet_index(51)]
     pub type IPOnchain = pallet_ip_onchain;

@@ -39,6 +39,8 @@ mod test_runtime {
     #[runtime::pallet_index(0)]
     pub type System = frame_system;
     #[runtime::pallet_index(1)]
+    pub type Balances = pallet_balances;
+    #[runtime::pallet_index(2)]
     pub type CustomPallet = crate;
 }
 
@@ -50,6 +52,11 @@ impl frame_system::Config for Test {
 
     type Block = MockBlock<Test>;
     type BlockHashCount = ConstU64<250>;
+}
+
+#[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
+impl pallet_balances::Config for Test {
+    type AccountStore = System;
 }
 
 type Extrinsic = TestXt<RuntimeCall, ()>;
@@ -114,6 +121,7 @@ parameter_types! {
 impl crate::Config for Test {
     type AuthorityId = crypto::arweave::AuthId;
     type TaskId = u32;
+    type Currency = Balances;
     type MaxDataLength = MaxDataLength;
     type MaxTxHashLength = MaxTxHashLength;
     type MaxSignedDataLength = MaxSignedDataLength;

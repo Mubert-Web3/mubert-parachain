@@ -1,6 +1,7 @@
 use super::*;
 use polkadot_sdk::*;
 
+use polkadot_sdk::frame_support::traits::Currency;
 use scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
@@ -9,11 +10,15 @@ use sp_debug_derive::RuntimeDebug;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
+pub type BalanceOf<T, I = ()> =
+    <<T as Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
 pub type TaskFor<T, I = ()> = Task<
     <T as Config<I>>::TaskId,
     <T as frame_system::Config>::AccountId,
     <T as Config<I>>::MaxDataLength,
     <T as Config<I>>::MaxTxHashLength,
+    BalanceOf<T, I>,
 >;
 
 pub type TaskResultFor<T, I = ()> = TaskResult<
@@ -27,7 +32,7 @@ pub type WorkerInfoFor<T> = WorkerInfo<<T as frame_system::Config>::AccountId>;
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 #[scale_info(skip_type_params(DataLimit, TxHashLimit))]
-pub struct Task<TaskID, WorkerAddress, DataLimit: Get<u32>, TxHashLimit: Get<u32>> {
+pub struct Task<TaskID, WorkerAddress, DataLimit: Get<u32>, TxHashLimit: Get<u32>, Currency> {
     // unique task id
     pub task_id: TaskID,
 
@@ -41,6 +46,11 @@ pub struct Task<TaskID, WorkerAddress, DataLimit: Get<u32>, TxHashLimit: Get<u32
 
     // arweave tx hash
     pub tx_hash: Option<BoundedVec<u8, TxHashLimit>>,
+
+    // deposit for task, returned to worker_address after task completed
+    pub amount: Currency,
+    // tips for transaction with signed data
+    pub tips: Currency,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]

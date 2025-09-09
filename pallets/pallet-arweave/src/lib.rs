@@ -7,7 +7,11 @@ use alloc::format;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use polkadot_sdk::polkadot_sdk_frame as frame;
+use polkadot_sdk::{
+    frame_support::traits::{Currency, ExistenceRequirement, Incrementable},
+    polkadot_sdk_frame as frame,
+    sp_runtime::traits::AccountIdConversion,
+};
 use polkadot_sdk::{sp_core, sp_io};
 
 use frame::prelude::*;
@@ -15,8 +19,6 @@ use frame_system::{
     offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer},
     pallet_prelude::BlockNumberFor,
 };
-
-use polkadot_sdk::frame_support::traits::Incrementable;
 
 pub use errors::*;
 pub use pallet::*;
@@ -50,6 +52,9 @@ macro_rules! log {
 	};
 }
 
+const PALLET_ID: polkadot_sdk::frame_support::PalletId =
+    polkadot_sdk::frame_support::PalletId(*b"ar/depos");
+
 #[frame::pallet(dev_mode)]
 pub mod pallet {
     use super::*;
@@ -75,6 +80,8 @@ pub mod pallet {
             + CheckedSub
             + PartialOrd;
 
+        type Currency: Currency<Self::AccountId>;
+
         #[pallet::constant]
         type MaxDataLength: Get<u32>;
 
@@ -94,6 +101,7 @@ pub mod pallet {
     pub type NextTaskId<T: Config<I>, I: 'static = ()> = StorageValue<_, T::TaskId, OptionQuery>;
 
     #[pallet::storage]
+    #[pallet::getter(fn get_task)]
     pub(super) type Tasks<T: Config<I>, I: 'static = ()> =
         StorageMap<_, Blake2_128Concat, T::TaskId, TaskFor<T, I>>;
 
@@ -125,6 +133,13 @@ pub mod pallet {
         TaskMustBeInClearState,
         TaskHasNoResult,
         TaskDataInvalidJson,
+
+        ZeroAmount,
+        DepositOverflow,
+        TransferFailed,
+        BadDeposit,
+        DepositTooSmallForNewAccount,
+        BalanceOverflow,
     }
 
     #[pallet::hooks]
@@ -250,9 +265,12 @@ pub mod pallet {
             origin: OriginFor<T>,
             worker_address: T::AccountId,
             data: BoundedVec<u8, T::MaxDataLength>,
+            amount: BalanceOf<T, I>,
+            tips: BalanceOf<T, I>,
         ) -> DispatchResult {
             let origin = ensure_signed(origin)?;
-            Self::add_new_task(origin, worker_address, data)?;
+            ensure!(!amount.is_zero(), Error::<T, I>::ZeroAmount);
+            Self::add_new_task(origin, worker_address, data, amount, tips)?;
             Ok(())
         }
 
@@ -288,6 +306,12 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
             Self::move_task_to_result(origin, task_id)?;
             Ok(())
+        }
+    }
+
+    impl<T: Config<I>, I: 'static> Pallet<T, I> {
+        pub fn account_id() -> T::AccountId {
+            PALLET_ID.into_account_truncating()
         }
     }
 }

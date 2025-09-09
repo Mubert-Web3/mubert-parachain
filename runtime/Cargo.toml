@@ -55,6 +55,8 @@ polkadot-sdk = { workspace = true, features = [
     "pallet-membership",
     "pallet-nfts",
     "pallet-nfts-runtime-api",
+    "pallet-treasury",
+    "pallet-assets",
     "parachains-common",
     "polkadot-parachain-primitives",
     "polkadot-runtime-common",
