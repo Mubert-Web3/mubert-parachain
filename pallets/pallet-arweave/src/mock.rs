@@ -47,7 +47,8 @@ mod test_runtime {
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
 impl frame_system::Config for Test {
     type Nonce = u64;
-    type AccountId = sp_core::sr25519::Public;
+    type AccountId = AccountId;
+    type AccountData = pallet_balances::AccountData<u64>;
     type Lookup = IdentityLookup<Self::AccountId>;
 
     type Block = MockBlock<Test>;

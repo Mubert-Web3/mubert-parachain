@@ -4,6 +4,15 @@ use arweave_rust::*;
 use polkadot_sdk::sp_runtime::offchain::http;
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
+    /// Signs tasks that are in the `Sign` state.
+    ///
+    /// # It ensures
+    /// - Tasks are signed and moved to the next state.
+    ///
+    /// # Errors
+    /// - `HttpRequestError`: If there is an issue with the HTTP request.
+    /// - `ArweaveRustError`: If there is an issue with the Arweave Rust library.
+    /// - `BoundedVecError`: If the transaction hash cannot be converted to a bounded vector.
     pub fn sign_tasks(
     ) -> OffchainWorkerResult<Vec<(TaskFor<T, I>, Option<ar_substrate::Transaction>)>> {
         let mut commit_tasks = vec![];
@@ -18,7 +27,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
 
             let tx = ar_runtime_interface::arweave_extension::signed_transaction(
                 task_to_sing.data.to_vec(),
-                fee*2,
+                fee * 2,
                 last_tx.as_str(),
                 vec![(
                     "Content-Type".as_bytes().to_vec(),
@@ -40,6 +49,14 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         Ok(commit_tasks)
     }
 
+    /// Uploads tasks that are in the `Upload` state.
+    ///
+    /// # It ensures
+    /// - Tasks are uploaded to Arweave and moved to the next state.
+    ///
+    /// # Errors
+    /// - `HttpRequestError`: If there is an issue with the HTTP request.
+    /// - `ArweaveRustTransactionPending`: If the transaction is still pending.
     pub fn upload_tasks(
     ) -> OffchainWorkerResult<Vec<(TaskFor<T, I>, Option<ar_substrate::Transaction>)>> {
         let mut commit_tasks = vec![];
@@ -102,6 +119,14 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         Ok(commit_tasks)
     }
 
+    /// Validates tasks that are in the `Validate` state.
+    ///
+    /// # It ensures
+    /// - Tasks are validated and moved to the next state based on the response.
+    ///
+    /// # Errors
+    /// - `HttpRequestError`: If there is an issue with the HTTP request.
+    /// - `ArweaveRustTransactionPending`: If the transaction is still pending.
     pub fn validate_tasks(
     ) -> OffchainWorkerResult<Vec<(TaskFor<T, I>, Option<ar_substrate::Transaction>)>> {
         let mut commit_tasks = vec![];
@@ -122,7 +147,11 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
                         return Err(OffchainWorkerError::ArweaveRustTransactionPending);
                     }
                     404 => {
-                        log!(warn, "Received 404 status_code from arweave, resubmit to sign: {}", status_code);
+                        log!(
+                            warn,
+                            "Received 404 status_code from arweave, resubmit to sign: {}",
+                            status_code
+                        );
                         task_to_validate.state = TaskState::Sign;
                         commit_tasks.push((task_to_validate, None));
                     }
