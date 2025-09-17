@@ -144,6 +144,23 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config<I>, I: 'static> Hooks<BlockNumberFor<T>> for Pallet<T, I> {
+        /// Executes off-chain tasks for the pallet, such as signing, uploading, and validating tasks.
+        /// This function is triggered on every block.
+        ///
+        /// # It ensures
+        /// - Off-chain tasks are processed only on even block numbers.
+        /// - Tasks are signed, uploaded, and validated if the Arweave extension is enabled.
+        /// - Signed transactions are submitted for committing or clearing tasks.
+        ///
+        /// # Parameters
+        /// - `block_number`: The current block number, used to determine whether to execute off-chain tasks.
+        ///
+        /// # Errors
+        /// - Logs an error if the Arweave extension is not enabled.
+        /// - Logs an error if signing tasks, uploading tasks, or validating tasks fails.
+        /// - Logs an error if no local accounts are available for signing transactions.
+        /// - Logs an error if data conversion to a bounded vector fails.
+        /// - Logs an error if submitting signed transactions fails.
         fn offchain_worker(block_number: BlockNumberFor<T>) {
             let n: U256 = block_number.into();
 

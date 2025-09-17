@@ -9,6 +9,18 @@ use alloc::vec::Vec;
 use sp_runtime::offchain::{http, Duration};
 
 impl<T: Config<I>, I: 'static> Pallet<T, I> {
+    /// Sends an HTTP GET request to Arweave's pricing endpoint to fetch the fee.
+    ///
+    /// # Parameters
+    /// - `data_len`: The length of the data in bytes for which the fee is calculated.
+    ///
+    /// # Errors
+    /// - Returns `http::Error::IoError` if the HTTP request fails.
+    /// - Returns `http::Error::DeadlineReached` if the request times out.
+    /// - Returns `http::Error::Unknown` if the response code is not 200 or the body cannot be parsed.
+    ///
+    /// # Events
+    /// - Logs warnings for unexpected HTTP status codes or parsing errors.
     pub fn arweave_fee(data_len: usize) -> Result<u64, http::Error> {
         let deadline = sp_io::offchain::timestamp().add(Duration::from_millis(5_000));
         let url = format!("https://arweave.net/price/{}", data_len);
@@ -38,6 +50,15 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         Ok(num)
     }
 
+    /// Fetches the last transaction from Arweave.
+    ///
+    /// # Errors
+    /// - Returns `http::Error::IoError` if the HTTP request fails.
+    /// - Returns `http::Error::DeadlineReached` if the request times out.
+    /// - Returns `http::Error::Unknown` if the response code is not 200 or the body cannot be parsed.
+    ///
+    /// # Events
+    /// - Logs warnings for unexpected HTTP status codes or parsing errors.
     pub fn arweave_last_tx() -> Result<String, http::Error> {
         let deadline = sp_io::offchain::timestamp().add(Duration::from_millis(5_000));
         let request = http::Request::get("https://arweave.net/tx_anchor");
@@ -61,6 +82,18 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         Ok(body_str.to_string())
     }
 
+    /// Posts a transaction to Arweave.
+    ///
+    /// # Parameters
+    /// - `body`: The transaction data to be sent as a vector of byte slices.
+    ///
+    /// # Errors
+    /// - Returns `http::Error::IoError` if the HTTP request fails.
+    /// - Returns `http::Error::DeadlineReached` if the request times out.
+    /// - Returns `http::Error::Unknown` if the response code is not 200.
+    ///
+    /// # Events
+    /// - Logs warnings for unexpected HTTP status codes.
     pub fn arweave_post_transaction(body: Vec<&[u8]>) -> Result<(), http::Error> {
         let deadline = sp_io::offchain::timestamp().add(Duration::from_millis(5_000));
         let request = http::Request::post("https://arweave.net/tx", body);
@@ -81,6 +114,14 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         Ok(())
     }
 
+    /// Retrieves the status code of a transaction from Arweave.
+    ///
+    /// # Parameters
+    /// - `tx_id`: The transaction ID as a vector of bytes.
+    ///
+    /// # Errors
+    /// - Returns `OffchainWorkerError::HttpRequestError` if the HTTP request fails or times out.
+    ///
     pub fn arweave_get_transaction(tx_id: Vec<u8>) -> Result<u16, OffchainWorkerError> {
         let tx_id = String::from_utf8(tx_id).unwrap();
         let deadline = sp_io::offchain::timestamp().add(Duration::from_millis(5_000));
@@ -96,7 +137,7 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
             .map_err(|_| http::Error::DeadlineReached)
             .map_err(|e| OffchainWorkerError::HttpRequestError(e))?
             .map_err(|e| OffchainWorkerError::HttpRequestError(e))?;
-        
+
         Ok(response.code)
     }
 }

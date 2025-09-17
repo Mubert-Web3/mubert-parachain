@@ -20,6 +20,7 @@ log = { workspace = true }
 polkadot-sdk = { workspace = true, features = [
     "runtime",
     "experimental",
+    "pallet-balances",
 ], default-features = false }
 
 thiserror = { workspace = true, default-features = false }
