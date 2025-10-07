@@ -81,9 +81,9 @@ fn testnet_genesis(
         },
         membership: MembershipConfig {
             members: BoundedVec::try_from(vec![
-                Sr25519Keyring::Alice.to_account_id(),
+                // Sr25519Keyring::Alice.to_account_id(),
                 root.clone(),
-                //Sr25519Keyring::Bob.to_account_id(),
+                Sr25519Keyring::Bob.to_account_id(),
                 #[cfg(feature = "runtime-benchmarks")]
                 whitelisted_caller::<AccountId>().into(),
             ])

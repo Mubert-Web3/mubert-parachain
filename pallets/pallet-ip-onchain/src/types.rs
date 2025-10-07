@@ -27,6 +27,8 @@ pub type AuthorityDetailsFor<T, I = ()> =
 pub enum AuthorityKind {
     Musician,
     Label,
+
+    Foreign,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
@@ -146,6 +148,8 @@ pub enum AuthorityAccessSetting {
     EditAuthority,
 
     CreateAuthorityCollection,
+
+    WrapEntity,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, RuntimeDebug)]

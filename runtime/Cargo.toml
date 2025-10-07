@@ -57,6 +57,7 @@ polkadot-sdk = { workspace = true, features = [
     "pallet-nfts-runtime-api",
     "pallet-treasury",
     "pallet-assets",
+    "polkadot-runtime-parachains",
     "parachains-common",
     "polkadot-parachain-primitives",
     "polkadot-runtime-common",

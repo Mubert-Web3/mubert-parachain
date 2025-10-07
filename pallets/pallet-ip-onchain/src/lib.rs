@@ -4,6 +4,7 @@
 use polkadot_sdk::pallet_nfts;
 use polkadot_sdk::pallet_nfts::ItemConfig;
 use polkadot_sdk::polkadot_sdk_frame as frame;
+use polkadot_sdk::staging_xcm;
 
 use frame::traits::Contains;
 
@@ -21,8 +22,10 @@ mod types;
 
 pub use pallet::*;
 pub use types::*;
+pub use xcm::*;
 pub mod external_nfts_macros;
 pub mod weights;
+pub mod xcm;
 
 #[cfg(test)]
 pub mod mock;
@@ -57,7 +60,9 @@ pub mod pallet {
             + Incrementable
             + CheckedAdd
             + CheckedSub
-            + PartialOrd;
+            + PartialOrd
+            + Debug
+            + Clone;
         type AuthorId: Member
             + Parameter
             + MaxEncodedLen
@@ -65,7 +70,9 @@ pub mod pallet {
             + Incrementable
             + CheckedAdd
             + CheckedSub
-            + PartialOrd;
+            + PartialOrd
+            + Debug
+            + Clone;
         type EntityId: Member
             + Parameter
             + MaxEncodedLen
@@ -73,30 +80,63 @@ pub mod pallet {
             + Incrementable
             + CheckedAdd
             + CheckedSub
-            + PartialOrd;
+            + PartialOrd
+            + Debug
+            + Clone;
+
+        type ForeignRequestId: Member
+            + Parameter
+            + MaxEncodedLen
+            + Copy
+            + Incrementable
+            + CheckedAdd
+            + CheckedSub
+            + PartialEq
+            + Debug
+            + Clone;
+        type ForeignAuthorityId: Member
+            + Parameter
+            + MaxEncodedLen
+            + Copy
+            + Debug
+            + Clone
+            + PartialEq;
+        type ForeignMover: ForeignMover<
+            EntityDetailsFor<Self, I>,
+            Self::AuthorityId,
+            Self::ForeignAuthorityId,
+            ForeignInfoFor<Self, I>,
+        >;
 
         #[pallet::constant]
-        type MaxShortStringLength: Get<u32>;
+        type MaxShortStringLength: Get<u32> + Debug + Clone + PartialEq;
 
         #[pallet::constant]
-        type MaxLongStringLength: Get<u32>;
+        type MaxLongStringLength: Get<u32> + Debug + Clone + PartialEq;
 
         #[pallet::constant]
-        type MaxEntityAuthors: Get<u32>;
+        type MaxEntityAuthors: Get<u32> + Debug + Clone + PartialEq;
 
         #[pallet::constant]
-        type MaxRoyaltyParts: Get<u32>;
+        type MaxRoyaltyParts: Get<u32> + Debug + Clone + PartialEq;
 
         #[pallet::constant]
-        type MaxRelatedEntities: Get<u32>;
+        type MaxRelatedEntities: Get<u32> + Debug + Clone + PartialEq;
 
         #[pallet::constant]
-        type MaxArrayLen: Get<u32>;
+        type MaxArrayLen: Get<u32> + Clone + PartialEq;
 
         type WhiteListChecker: Contains<Self::AccountId>;
 
-        type CollectionId: Member + Parameter + MaxEncodedLen + Copy + Incrementable;
-        type ItemId: Member + Parameter + MaxEncodedLen + Copy;
+        type CollectionId: Member
+            + Parameter
+            + MaxEncodedLen
+            + Copy
+            + Incrementable
+            + Debug
+            + Clone
+            + PartialEq;
+        type ItemId: Member + Parameter + MaxEncodedLen + Copy + Debug + Clone + PartialEq;
 
         type CollectionConfig: Default
             + MaxEncodedLen
@@ -105,7 +145,8 @@ pub mod pallet {
             + Encode
             + PartialEq
             + Debug
-            + Clone;
+            + Clone
+            + Debug;
 
         type Nfts: Mutate<Self::AccountId, ItemConfig, ItemId = Self::ItemId>
             + Create<Self::AccountId, Self::CollectionConfig, CollectionId = Self::CollectionId>;
@@ -118,7 +159,11 @@ pub mod pallet {
         type WeightInfo: weights::WeightInfo;
 
         #[cfg(feature = "runtime-benchmarks")]
-        type BenchmarkHelper: BenchmarkHelper<Self::CollectionId, Self::ItemId>;
+        type BenchmarkHelper: BenchmarkHelper<
+            Self::CollectionId,
+            Self::ItemId,
+            Self::ForeignAuthorityId,
+        >;
     }
 
     #[pallet::storage]
@@ -165,6 +210,19 @@ pub mod pallet {
     #[pallet::storage]
     pub type NftsSupport<T: Config<I>, I: 'static = ()> = StorageValue<_, bool>;
 
+    #[pallet::storage]
+    pub type NextForeignRequests<T: Config<I>, I: 'static = ()> =
+        StorageValue<_, T::ForeignRequestId, OptionQuery>;
+
+    #[pallet::storage]
+    pub(super) type ForeignsRequests<T: Config<I>, I: 'static = ()> =
+        StorageMap<_, Blake2_128Concat, T::ForeignRequestId, ForeignInfoFor<T, I>>;
+
+    // source of foreign entities
+    #[pallet::storage]
+    pub(super) type EntitiesPointer<T: Config<I>, I: 'static = ()> =
+        StorageMap<_, Blake2_128Concat, T::EntityId, (staging_xcm::v5::Location, T::EntityId)>;
+
     /// Events
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -200,6 +258,20 @@ pub mod pallet {
         EntityEdited {
             entity_id: T::EntityId,
         },
+        EntityWraped {
+            entity_id: T::EntityId,
+        },
+        EntityMovedForeign {
+            entity_id: T::EntityId,
+        },
+
+        /// ForeignRequests events
+        ForeignRequestsAdded {
+            request_id: T::ForeignRequestId,
+        },
+        ForeignRequestsDone {
+            request_id: T::ForeignRequestId,
+        },
     }
 
     /// Errors
@@ -214,6 +286,7 @@ pub mod pallet {
         AuthorityAlreadyExists,
         AuthorityNotFound,
         AuthorityIdIncrementFailed,
+        AuthorityBadKind,
         /// Authority nft extension Error
         AuthorityNftCollectionIdAlreadyExist,
 
@@ -221,6 +294,7 @@ pub mod pallet {
         AuthoritiesAccessNotFound,
         AuthoritiesAccessExist,
         AuthoritiesAccessNotExist,
+        AuthoritiesAccessControlledForeign,
 
         /// Entity errors
         EntityAlreadyExists,
@@ -230,6 +304,14 @@ pub mod pallet {
         EntityRelatedEntityNotFound,
         EntityNftOwnerMustBeSpecified,
         EntityNftImmutable,
+
+        /// Foreign errors
+        ForeignAlreadyExists,
+        ForeignNotFound,
+        ForeignIdIncrementFailed,
+        ForeignRequestNoPermission,
+        ForeignRequestAlreadyDone,
+        ForeignRequestNotApproved,
 
         /// General Errors
         Overflow, // checked_add failed
@@ -437,24 +519,87 @@ pub mod pallet {
             ensure_root(origin)?;
             Self::toggle_nfts_support()
         }
+
+        #[pallet::call_index(9)]
+        #[pallet::weight(T::WeightInfo::foreign_authority_request())]
+        pub fn foreign_authority_request(
+            origin: OriginFor<T>,
+            foreign_authority_id: T::ForeignAuthorityId,
+            name: BoundedVec<u8, T::MaxShortStringLength>,
+            entity_id: T::EntityId,
+            foreign_location: staging_xcm::v5::Location,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            let here_authority_id =
+                Self::add_new_authority(who.clone(), name, AuthorityKind::Foreign, None)?;
+            Self::set_foreign_authority_request(
+                who,
+                entity_id,
+                here_authority_id,
+                foreign_authority_id,
+                foreign_location,
+            )?;
+            Ok(())
+        }
+
+        #[pallet::call_index(10)]
+        #[pallet::weight(T::WeightInfo::foreign_authority_request_approve())]
+        pub fn foreign_authority_request_approve(
+            origin: OriginFor<T>,
+            entity_id: T::EntityId,
+            foreign_request_id: T::ForeignRequestId,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            Self::foreign_request_approve(who, entity_id, foreign_request_id)
+        }
+
+        #[pallet::call_index(11)]
+        #[pallet::weight(T::WeightInfo::foreign_authority_request_take())]
+        pub fn foreign_authority_request_take(
+            origin: OriginFor<T>,
+            foreign_request_id: T::ForeignRequestId,
+            src: staging_xcm::v5::Location,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?; // foreign origin is expected
+            Self::foreign_request_take(who, foreign_request_id, src)
+        }
+
+        #[pallet::call_index(12)]
+        #[pallet::weight(T::WeightInfo::access_wrapped_entity())]
+        pub fn access_wrapped_entity(
+            origin: OriginFor<T>,
+            from: staging_xcm::v5::Location,
+            entity: EntityDetailsFor<T, I>,
+            foreign_request: ForeignInfoFor<T, I>,
+        ) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+            Self::access_entity(who, from, entity, foreign_request)
+        }
     }
 
     #[cfg(feature = "runtime-benchmarks")]
-    pub trait BenchmarkHelper<CollectionId, ItemId> {
+    pub trait BenchmarkHelper<CollectionId, ItemId, ForeignAuthorityId> {
         fn collection_id(i: u32) -> CollectionId;
         fn item_id(i: u32) -> ItemId;
+        fn foreign_authority_id(i: u32) -> ForeignAuthorityId;
     }
     #[cfg(feature = "runtime-benchmarks")]
-    impl<CollectionId, ItemId> BenchmarkHelper<CollectionId, ItemId> for ()
+    impl<CollectionId, ItemId, ForeignAuthorityId>
+        BenchmarkHelper<CollectionId, ItemId, ForeignAuthorityId> for ()
     where
         CollectionId: From<u32>,
         ItemId: From<u32>,
+        ForeignAuthorityId: From<u32>,
     {
         fn collection_id(i: u32) -> CollectionId {
             i.into()
         }
 
         fn item_id(i: u32) -> ItemId {
+            i.into()
+        }
+
+        fn foreign_authority_id(i: u32) -> ForeignAuthorityId {
             i.into()
         }
     }

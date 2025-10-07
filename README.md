@@ -18,7 +18,7 @@ git clone https://github.com/Mubert-Web3/mubert-parachain
 cd mubert-parachain
 
 # Build the node
-cargo build --release
+cargo build --workspace --release
 ```
 
 ## Starting a Development Chain
@@ -40,7 +40,7 @@ installation [here](https://paritytech.github.io/zombienet/install.html#installa
 We're left just with starting the network:
 
 ```sh
-zombienet --provider native spawn zombienet.toml
+zombienet -p native spawn zombienet-big.toml
 ```
 
 ## Connect with the Polkadot-JS Apps Front-End
@@ -55,6 +55,14 @@ zombienet --provider native spawn zombienet.toml
 
 - 🧑‍🔧 You can also find the source code and instructions for hosting your own instance in the
   [`polkadot-js/apps`](https://github.com/polkadot-js/apps) repository.
+
+## Establish a hrmp between Parachain
+
+```bash
+cd scripts/hrmp
+npm i
+node establish.mjs
+```
 
 ## Benchmarks
 

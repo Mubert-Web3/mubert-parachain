@@ -21,6 +21,8 @@ polkadot-sdk = { workspace = true, features = [
     "runtime",
     "experimental",
     "pallet-nfts",
+    "staging-xcm",
+    "pallet-xcm",
 ], default-features = false }
 
 [dev-dependencies]
