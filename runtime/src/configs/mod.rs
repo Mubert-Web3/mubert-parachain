@@ -29,6 +29,9 @@ mod xcm_config;
 use polkadot_sdk::{
     pallet_treasury, staging_parachain_info as parachain_info, staging_xcm as xcm, *,
 };
+
+use alloc::vec;
+
 #[cfg(not(feature = "runtime-benchmarks"))]
 use polkadot_sdk::{staging_xcm_builder as xcm_builder, staging_xcm_executor as xcm_executor};
 
@@ -55,6 +58,7 @@ use frame_system::{
     offchain::{CreateSignedTransaction, CreateTransactionBase},
     EnsureRoot, EnsureSigned, EnsureWithSuccess,
 };
+use pallet_ip_onchain::{EntityDetailsFor, ForeignInfoFor, ForeignMover};
 use pallet_nfts::PalletFeatures;
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::{
@@ -64,10 +68,11 @@ use parachains_common::{
 use polkadot_runtime_common::{
     xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
+use scale_codec::Encode;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::{
-    codec, generic::Era, traits::Verify, MultiSignature, MultiSigner, Perbill, Permill,
-    SaturatedConversion,
+    codec, generic::Era, traits::Verify, DispatchResult, MultiSignature, MultiSigner, Perbill,
+    Permill, SaturatedConversion,
 };
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
@@ -76,14 +81,15 @@ use xcm::latest::prelude::BodyId;
 use super::{
     weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
     AccountId, Assets, Aura, AuthorId, AuthorityId, Balance, Balances, BaseFee, Block, BlockNumber,
-    CollatorSelection, CollectionId, ConsensusHook, EVMChainId, EntityId, Hash, ItemId, Membership,
-    MessageQueue, NFTs, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
-    RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
-    Signature, SignedExtra, SignedPayload, System, TaskId, Timestamp, UncheckedExtrinsic,
-    WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, DAYS, EXISTENTIAL_DEPOSIT, HOURS,
-    MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, MILLI_UNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, UNIT,
-    VERSION,
+    CollatorSelection, CollectionId, ConsensusHook, EVMChainId, EntityId, ForeignAuthorityId,
+    ForeignRequestId, Hash, ItemId, Membership, MessageQueue, NFTs, Nonce, PalletInfo,
+    ParachainSystem, PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason,
+    RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys, Signature, SignedExtra,
+    SignedPayload, System, TaskId, Timestamp, UncheckedExtrinsic, WeightToFee, XcmpQueue,
+    AVERAGE_ON_INITIALIZE_RATIO, DAYS, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
+    MICRO_UNIT, MILLI_UNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, UNIT, VERSION,
 };
+
 use sp_core::TypedGet;
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -345,17 +351,23 @@ impl pallet_collator_selection::Config for Runtime {
 }
 
 parameter_types! {
-    #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+    #[derive(Clone, Debug, PartialEq)]
     pub const MaxShortStringLength: u32 = 32;
-     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+    #[derive(Clone, Debug, PartialEq)]
     pub const MaxLongStringLength: u32 = 128;
-     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "std", derive( serde::Serialize, serde::Deserialize))]
+    #[derive(Clone, Debug, PartialEq)]
     pub const MaxEntityAuthors: u32 = 10;
-     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "std", derive( serde::Serialize, serde::Deserialize))]
+    #[derive(Clone, Debug, PartialEq)]
     pub const MaxRoyaltyParts: u32 = 10;
-     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+    #[derive(Clone, Debug, PartialEq)]
     pub const MaxRelatedEntities: u32 = 10;
-     #[cfg_attr(feature = "std", derive(Clone, serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "std", derive( serde::Serialize, serde::Deserialize))]
+    #[derive(Clone, Debug, PartialEq)]
     pub const MaxArrayLen: u32 = 10;
 }
 
@@ -363,6 +375,12 @@ impl pallet_ip_onchain::Config for Runtime {
     type AuthorityId = AuthorityId;
     type AuthorId = AuthorId;
     type EntityId = EntityId;
+    type ForeignRequestId = ForeignRequestId;
+    type ForeignAuthorityId = ForeignAuthorityId;
+    #[cfg(not(feature = "runtime-benchmarks"))]
+    type ForeignMover = ForeignMoverImpl;
+    #[cfg(feature = "runtime-benchmarks")]
+    type ForeignMover = pallet_ip_onchain::benchmarking::ForeignMoverImpl<Runtime>;
 
     type MaxShortStringLength = MaxShortStringLength;
     type MaxLongStringLength = MaxLongStringLength;
@@ -671,5 +689,61 @@ impl ArgumentsFactory<NativeOrWithId<u32>, polkadot_sdk::sp_runtime::AccountId32
 
     fn create_beneficiary(seed: [u8; 32]) -> polkadot_sdk::sp_runtime::AccountId32 {
         polkadot_sdk::sp_runtime::AccountId32::from_entropy(&mut seed.as_slice()).unwrap()
+    }
+}
+
+pub struct ForeignMoverImpl();
+impl
+    ForeignMover<
+        EntityDetailsFor<Runtime>,
+        AuthorityId,
+        ForeignAuthorityId,
+        ForeignInfoFor<Runtime>,
+    > for ForeignMoverImpl
+{
+    fn send_wrapped(
+        from: xcm::v5::Location,
+        entity_details: EntityDetailsFor<Runtime>,
+        foreign_request: ForeignInfoFor<Runtime>,
+    ) -> DispatchResult {
+        let call = pallet_ip_onchain::Call::access_wrapped_entity {
+            from,
+            entity: entity_details.clone(),
+            foreign_request: foreign_request.clone(),
+        };
+
+        let message = xcm::v5::Xcm(vec![
+            xcm::v5::Instruction::UnpaidExecution {
+                weight_limit: xcm::v5::WeightLimit::Unlimited,
+                check_origin: None,
+            },
+            xcm::v5::Instruction::Transact {
+                origin_kind: xcm::v5::OriginKind::SovereignAccount,
+                call: RuntimeCall::IPOnchain(call).encode().into(),
+                fallback_max_weight: None,
+            },
+        ]);
+
+        match PolkadotXcm::send_xcm(
+            xcm::v5::InteriorLocation::Here,
+            foreign_request.foreign_location,
+            message.clone(),
+        ) {
+            Ok(_) => log::info!(
+                target: "runtime::foreign_mover_impl",
+                "Request to access wrapped entity sent successfully."
+            ),
+            Err(e) => log::error!(
+                target: "runtime::foreign_mover_impl",
+                "Failed to send request to access wrapped entity: {:?}",
+                e
+            ),
+        }
+
+        Ok(())
+    }
+
+    fn covert_authority_id(id: ForeignAuthorityId) -> AuthorityId {
+        id as AuthorityId
     }
 }

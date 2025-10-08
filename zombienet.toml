@@ -5,16 +5,22 @@ chain = "rococo-local"
 [[relaychain.nodes]]
 name = "alice"
 validator = true
+rpc_port = 9940
 
 [[relaychain.nodes]]
 name = "bob"
 validator = true
 
 [[parachains]]
-id = 1000
-
-[parachains.collator]
+id = 4724
+[[parachains.collators]]
 name = "charlie"
 rpc_port = 9944
 command = "./target/release/mubert-node"
-#args = ["--arweave-secret-key-path=path_to_test_arweave_wallet.json"]
+
+[[parachains]]
+id = 4725
+[[parachains.collators]]
+name = "franklin"
+rpc_port = 9945
+command = "./omubert-node"

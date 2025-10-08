@@ -310,5 +310,240 @@ mod benchmarks {
         assert_eq!(enabled, true);
     }
 
+    #[benchmark]
+    fn foreign_authority_request() {
+        let caller: T::AccountId = whitelisted_caller();
+        let foreign_authority_id: T::ForeignAuthorityId =
+            T::BenchmarkHelper::foreign_authority_id(0);
+        let entity_id: T::EntityId = T::EntityId::initial_value().unwrap();
+
+        #[extrinsic_call]
+        foreign_authority_request(
+            RawOrigin::Signed(caller.clone()),
+            foreign_authority_id,
+            vec![0].try_into().unwrap(),
+            entity_id,
+            staging_xcm::v5::Location {
+                parents: 0,
+                interior: staging_xcm::v5::Junctions::Here,
+            },
+        );
+
+        let foreign_request_id = T::ForeignRequestId::initial_value().unwrap();
+        assert!(ForeignsRequests::<T>::contains_key(foreign_request_id));
+    }
+
+    #[benchmark]
+    fn foreign_authority_request_approve() {
+        let caller: T::AccountId = whitelisted_caller();
+        let foreign_authority_id: T::ForeignAuthorityId =
+            T::BenchmarkHelper::foreign_authority_id(0);
+        let entity_id: T::EntityId = T::EntityId::initial_value().unwrap();
+        let foreign_request_id = T::ForeignRequestId::initial_value().unwrap();
+
+        let authority_id: T::AuthorityId = T::AuthorityId::initial_value().unwrap();
+        let account_id: T::AccountId = whitelisted_caller();
+
+        Authorities::<T>::insert(
+            authority_id,
+            AuthorityDetails {
+                authority_kind: AuthorityKind::Label,
+                name: vec![0].try_into().unwrap(),
+                collection_id: None,
+            },
+        );
+
+        AuthoritiesAccess::<T>::insert(
+            authority_id,
+            account_id.clone(),
+            AuthorityAccessSettings::all(),
+        );
+
+        Entities::<T>::insert(
+            entity_id,
+            EntityDetails {
+                entity_kind: IPEntityKind::Track,
+                owner: authority_id,
+                authors: None,
+                royalty_parts: None,
+                related_to: None,
+                metadata: Metadata {
+                    url: vec![4, 5, 6].try_into().unwrap(),
+                    standard: MetadataStandard::M25,
+                    features: Default::default(),
+                },
+                collection_id: None,
+                item_id: None,
+            },
+        );
+
+        ForeignsRequests::<T>::insert(
+            foreign_request_id,
+            ForeignInfo {
+                who: caller.clone(),
+                here_authority_id: authority_id,
+                entity_id,
+                foreign_location: Default::default(),
+                foreign_authority_id,
+                approval: false,
+                done: false,
+            },
+        );
+
+        #[extrinsic_call]
+        foreign_authority_request_approve(
+            RawOrigin::Signed(caller.clone()),
+            entity_id,
+            foreign_request_id,
+        );
+
+        let request = ForeignsRequests::<T>::get(foreign_request_id).unwrap();
+        assert_eq!(request.approval, true);
+    }
+
+    #[benchmark]
+    fn foreign_authority_request_take() {
+        let caller: T::AccountId = whitelisted_caller();
+        let foreign_authority_id: T::ForeignAuthorityId =
+            T::BenchmarkHelper::foreign_authority_id(0);
+        let entity_id: T::EntityId = T::EntityId::initial_value().unwrap();
+        let foreign_request_id = T::ForeignRequestId::initial_value().unwrap();
+
+        let authority_id: T::AuthorityId = T::AuthorityId::initial_value().unwrap();
+        let account_id: T::AccountId = whitelisted_caller();
+
+        Authorities::<T>::insert(
+            authority_id,
+            AuthorityDetails {
+                authority_kind: AuthorityKind::Label,
+                name: vec![0].try_into().unwrap(),
+                collection_id: None,
+            },
+        );
+
+        AuthoritiesAccess::<T>::insert(
+            authority_id,
+            account_id.clone(),
+            AuthorityAccessSettings::all(),
+        );
+
+        Entities::<T>::insert(
+            entity_id,
+            EntityDetails {
+                entity_kind: IPEntityKind::Track,
+                owner: authority_id,
+                authors: None,
+                royalty_parts: None,
+                related_to: None,
+                metadata: Metadata {
+                    url: vec![4, 5, 6].try_into().unwrap(),
+                    standard: MetadataStandard::M25,
+                    features: Default::default(),
+                },
+                collection_id: None,
+                item_id: None,
+            },
+        );
+
+        ForeignsRequests::<T>::insert(
+            foreign_request_id,
+            ForeignInfo {
+                who: caller.clone(),
+                here_authority_id: authority_id,
+                entity_id,
+                foreign_location: Default::default(),
+                foreign_authority_id,
+                approval: true,
+                done: false,
+            },
+        );
+
+        #[extrinsic_call]
+        foreign_authority_request_take(
+            RawOrigin::Signed(caller.clone()),
+            foreign_request_id,
+            Default::default(),
+        );
+
+        let request = ForeignsRequests::<T>::get(foreign_request_id).unwrap();
+        assert_eq!(request.done, true);
+    }
+
+    #[benchmark]
+    fn access_wrapped_entity() {
+        let caller: T::AccountId = whitelisted_caller();
+        let foreign_authority_id: T::ForeignAuthorityId =
+            T::BenchmarkHelper::foreign_authority_id(0);
+        let entity_id: T::EntityId = T::EntityId::initial_value().unwrap();
+        let foreign_request_id = T::ForeignRequestId::initial_value().unwrap();
+
+        let authority_id: T::AuthorityId = T::AuthorityId::initial_value().unwrap();
+        let account_id: T::AccountId = whitelisted_caller();
+
+        Authorities::<T>::insert(
+            authority_id,
+            AuthorityDetails {
+                authority_kind: AuthorityKind::Label,
+                name: vec![0].try_into().unwrap(),
+                collection_id: None,
+            },
+        );
+
+        AuthoritiesAccess::<T>::insert(
+            authority_id,
+            account_id.clone(),
+            AuthorityAccessSettings::all(),
+        );
+
+        #[extrinsic_call]
+        access_wrapped_entity(
+            RawOrigin::Signed(caller.clone()),
+            Default::default(),
+            EntityDetails {
+                entity_kind: IPEntityKind::Track,
+                owner: authority_id,
+                authors: None,
+                royalty_parts: None,
+                related_to: None,
+                metadata: Metadata {
+                    url: vec![4, 5, 6].try_into().unwrap(),
+                    standard: MetadataStandard::M25,
+                    features: Default::default(),
+                },
+                collection_id: None,
+                item_id: None,
+            },
+            ForeignInfo {
+                who: caller.clone(),
+                here_authority_id: authority_id,
+                entity_id,
+                foreign_location: Default::default(),
+                foreign_authority_id,
+                approval: true,
+                done: true,
+            },
+        );
+
+        let entity_id = T::EntityId::initial_value().unwrap();
+        assert!(Entities::<T>::contains_key(entity_id));
+    }
+
     impl_benchmark_test_suite!(IpOnchain, mock::new_test_ext(), mock::Test);
+}
+
+pub struct ForeignMoverImpl<T>(PhantomData<T>);
+impl<T: crate::Config> ForeignMover<EntityDetailsFor<T>, u32, u64, ForeignInfoFor<T>>
+    for ForeignMoverImpl<T>
+{
+    fn send_wrapped(
+        _: staging_xcm::v5::Location,
+        _: EntityDetailsFor<T>,
+        _: ForeignInfoFor<T>,
+    ) -> DispatchResult {
+        Ok(())
+    }
+
+    fn covert_authority_id(id: u64) -> u32 {
+        id as u32
+    }
 }

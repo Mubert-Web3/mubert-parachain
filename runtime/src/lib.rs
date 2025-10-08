@@ -118,10 +118,12 @@ pub type Executive = frame_executive::Executive<
 
 pub type EntityId = u32;
 pub type AuthorityId = u32;
+pub type ForeignRequestId = u32;
 pub type AuthorId = u32;
 pub type EntityDetails = pallet_ip_onchain::EntityDetailsFor<Runtime>;
 pub type AuthorityDetails = pallet_ip_onchain::AuthorityDetailsFor<Runtime>;
 pub type AuthorDetails = pallet_ip_onchain::AuthorFor<Runtime>;
+pub type ForeignAuthorityId = u64;
 
 pub type CollectionId = u64;
 pub type ItemId = u32;

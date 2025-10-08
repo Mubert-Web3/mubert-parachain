@@ -25,40 +25,42 @@ impl<T: Config<I>, I: 'static> Pallet<T, I> {
         name: BoundedVec<u8, T::MaxShortStringLength>,
         authority_kind: AuthorityKind,
         collection_config: Option<T::CollectionConfig>,
-    ) -> DispatchResult {
-        NextAuthorityId::<T, I>::try_mutate(|maybe_authority_id| -> DispatchResult {
-            let authority_id = maybe_authority_id
-                .map_or(T::AuthorityId::initial_value(), Some)
-                .ok_or(Error::<T, I>::AuthorityIdIncrementFailed)?;
+    ) -> Result<T::AuthorityId, DispatchError> {
+        NextAuthorityId::<T, I>::try_mutate(
+            |maybe_authority_id| -> Result<T::AuthorityId, DispatchError> {
+                let authority_id = maybe_authority_id
+                    .map_or(T::AuthorityId::initial_value(), Some)
+                    .ok_or(Error::<T, I>::AuthorityIdIncrementFailed)?;
 
-            ensure!(
-                !Authorities::<T, I>::contains_key(authority_id),
-                Error::<T, I>::AuthorityAlreadyExists
-            );
+                ensure!(
+                    !Authorities::<T, I>::contains_key(authority_id),
+                    Error::<T, I>::AuthorityAlreadyExists
+                );
 
-            let collection_id =
-                Self::init_collection_id_checked(origin.clone(), collection_config)?;
+                let collection_id =
+                    Self::init_collection_id_checked(origin.clone(), collection_config)?;
 
-            Authorities::<T, I>::insert(
-                authority_id,
-                AuthorityDetails {
-                    authority_kind,
-                    name,
-                    collection_id,
-                },
-            );
-            Self::deposit_event(Event::AuthorityAdded { authority_id });
+                Authorities::<T, I>::insert(
+                    authority_id,
+                    AuthorityDetails {
+                        authority_kind,
+                        name,
+                        collection_id,
+                    },
+                );
+                Self::deposit_event(Event::AuthorityAdded { authority_id });
 
-            Self::add_first_access(authority_id, origin)?;
+                Self::add_first_access(authority_id, origin)?;
 
-            let new_authority_id = authority_id
-                .increment()
-                .ok_or(Error::<T, I>::AuthorityIdIncrementFailed)?;
+                let new_authority_id = authority_id
+                    .increment()
+                    .ok_or(Error::<T, I>::AuthorityIdIncrementFailed)?;
 
-            *maybe_authority_id = Some(new_authority_id);
+                *maybe_authority_id = Some(new_authority_id);
 
-            Ok(())
-        })
+                Ok(authority_id)
+            },
+        )
     }
 
     /// Edits an existing authority's details in the storage.
