@@ -25,14 +25,16 @@ command = "./target/release/mubert-node"
 
 [[parachains]]
 id = 4725
+[[parachains.runtime]]
+preset = "local-xcm-test"
 [[parachains.collators]]
 name = "franklin"
 rpc_port = 9945
-command = "./omubert-node"
+command = "./target/release/mubert-node"
 [[parachains.collator_groups]]
 name = "two"
 count = 10
-command = "./omubert-node"
+command = "./target/release/mubert-node"
 [[parachains.collator_groups.collators]]
 name = "collator"
-command = "./omubert-node"
+command = "./target/release/mubert-node"
