@@ -1,5 +1,5 @@
 [relaychain]
-default_command = "polkadot"
+default_command = "./bin/polkadot"
 chain = "rococo-local"
 
 [[relaychain.nodes]]
@@ -23,4 +23,4 @@ id = 4725
 [[parachains.collators]]
 name = "franklin"
 rpc_port = 9945
-command = "./omubert-node"
+command = "./target/release/mubert-node"
