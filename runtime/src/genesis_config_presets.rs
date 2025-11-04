@@ -24,6 +24,8 @@ use polkadot_sdk::sp_application_crypto::Ss58Codec;
 const SAFE_XCM_VERSION: u32 = xcm::prelude::XCM_VERSION;
 /// Parachain id used for gensis config presets of parachain template.
 const PARACHAIN_ID: u32 = 4724;
+const PARACHAIN_XCM_TEST_ID: u32 = 4725;
+const LOCAL_XCM_TESTNET_PRESET:  &'static str = "local-xcm-test";
 
 /// Generate the session keys from individual elements.
 ///
@@ -102,7 +104,7 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
         .public()
 }
 
-fn development_config_genesis() -> Value {
+fn development_config_genesis(parachain_id: u32) -> Value {
     let sudo_account =
         AccountId::from_ss58check("5Ev8iRRe9R9Ag4V7hDDnDCwsx9pahjxeR39Bbq7vW69xyKtF").unwrap();
     testnet_genesis(
@@ -121,11 +123,11 @@ fn development_config_genesis() -> Value {
         ],
         vec![Sr25519Keyring::Alice.to_account_id(), sudo_account.clone()],
         sudo_account,
-        PARACHAIN_ID.into(),
+        parachain_id.into(),
     )
 }
 
-fn local_testnet_genesis() -> Value {
+fn local_testnet_genesis(parachain_id: u32) -> Value {
     testnet_genesis(
         // initial collators.
         vec![
@@ -144,15 +146,16 @@ fn local_testnet_genesis() -> Value {
             .map(|k| k.to_account_id())
             .collect(),
         Sr25519Keyring::Alice.to_account_id(),
-        PARACHAIN_ID.into(),
+        parachain_id.into(),
     )
 }
 
 /// Provides the JSON representation of predefined genesis config for given `id`.
 pub fn get_preset(id: &PresetId) -> Option<vec::Vec<u8>> {
     let patch = match id.as_ref() {
-        sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis(),
-        sp_genesis_builder::DEV_RUNTIME_PRESET => development_config_genesis(),
+        sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis(PARACHAIN_ID),
+        sp_genesis_builder::DEV_RUNTIME_PRESET => development_config_genesis(PARACHAIN_ID),
+        LOCAL_XCM_TESTNET_PRESET => local_testnet_genesis(PARACHAIN_XCM_TEST_ID),
         _ => return None,
     };
     Some(
@@ -167,5 +170,6 @@ pub fn preset_names() -> Vec<PresetId> {
     vec![
         PresetId::from(sp_genesis_builder::DEV_RUNTIME_PRESET),
         PresetId::from(sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET),
+        PresetId::from(LOCAL_XCM_TESTNET_PRESET),
     ]
 }

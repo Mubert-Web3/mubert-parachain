@@ -26,7 +26,7 @@ impl Extensions {
     }
 }
 
-pub fn development_chain_spec() -> ChainSpec {
+pub fn development_chain_spec(parachain_id: u32) -> ChainSpec {
     // Give your base currency a unit name and decimal places
     let mut properties = sc_chain_spec::Properties::new();
     properties.insert("tokenSymbol".into(), "UNIT".into());
@@ -37,8 +37,7 @@ pub fn development_chain_spec() -> ChainSpec {
         runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
         Extensions {
             relay_chain: "paseo".into(),
-            // You MUST set this to the correct network!
-            para_id: 4724,
+            para_id: parachain_id,
         },
     )
     .with_name("Development")
@@ -48,7 +47,7 @@ pub fn development_chain_spec() -> ChainSpec {
     .build()
 }
 
-pub fn local_chain_spec() -> ChainSpec {
+pub fn local_chain_spec(parachain_id: u32) -> ChainSpec {
     // Give your base currency a unit name and decimal places
     let mut properties = sc_chain_spec::Properties::new();
     properties.insert("tokenSymbol".into(), "UNIT".into());
@@ -60,8 +59,7 @@ pub fn local_chain_spec() -> ChainSpec {
         runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
         Extensions {
             relay_chain: "rococo-local".into(),
-            // You MUST set this to the correct network!
-            para_id: 4724,
+            para_id: parachain_id,
         },
     )
     .with_name("Local Testnet")
